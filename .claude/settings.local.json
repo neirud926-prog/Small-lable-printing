@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash('\"$output')",
+      "Bash(powershell -Command ':*)",
+      "Bash(cat)",
+      "Bash(powershell -ExecutionPolicy Bypass -File /tmp/install-node.ps1)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(find /c -type f -name \"node.exe\")",
+      "Bash(npm --version)",
+      "Bash(export PATH=\"/c/nodejs:$PATH\")",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm list:*)",
+      "Bash(python extract_excel_data.py)",
+      "Bash(pip install:*)",
+      "Bash(python \"d:\\\\Project\\\\Excel\\\\Small label\\\\extract_excel_data.py\")",
+      "Bash(python -m pip install openpyxl)",
+      "Bash(python \"d:\\\\Project\\\\Excel\\\\Small label\\\\inspect_sheets.py\")",
+      "Bash(where node:*)",
+      "Bash(where npm:*)",
+      "Bash(where npx:*)"
+    ]
+  }
+}

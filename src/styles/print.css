@@ -1,0 +1,9 @@
+@media print {
+  /* Hide everything except the label iframe content */
+  body > *:not(iframe) { display: none !important; }
+
+  @page {
+    size: 25mm 70mm;
+    margin: 0;
+  }
+}
