@@ -7,8 +7,8 @@ import Maintenance from './components/Maintenance/index'
 import Settings from './components/Settings'
 import FileConnect from './components/FileConnect'
 import { tryRestore, onRemoteChange, hasStoredHandle, pickExisting } from './utils/fileStorage'
-import { tryRestore as tryServerRestore, tryConnect as tryServerConnect,
-         onRemoteChange as onServerRemoteChange }             from './utils/serverStorage'
+import { init as initTauri, isTauri }                       from './utils/tauriStorage'
+import { autoLoad }                                          from './utils/dataLoader'
 
 const pageVariants = {
   initial: { opacity: 0, x: 40 },
@@ -26,31 +26,33 @@ export default function App() {
   // On mount: auto-connect using the best available storage
   useEffect(() => {
     async function init() {
-      // 1. Try previously-saved server URL
-      if (await tryServerRestore()) { setConnected(true); setLoading(false); return }
-
-      // 2. Try same-origin server (app opened via http://localhost:3000 or LAN IP)
-      const origin = window.location.origin
-      if (origin.startsWith('http')) {
-        if (await tryServerConnect(origin)) { setConnected(true); setLoading(false); return }
+      // 1. Native app — Tauri reads/writes D:\SmallLabel\small-label-data.json directly
+      if (isTauri()) {
+        try {
+          if (await initTauri()) {
+            await autoLoad()    // refresh drugs / locations / GTIN from configured paths
+            setConnected(true); setLoading(false); return
+          }
+        } catch (e) {
+          console.error('Tauri storage init failed:', e)
+        }
       }
 
-      // 3. Try previously-picked shared file (File System Access API)
+      // 2. Browser fallback — previously-picked shared file (File System Access API)
       if (await tryRestore()) { setConnected(true); setLoading(false); return }
 
-      // 4. Had a file before but lost permission — show minimal reconnect prompt
+      // 3. Had a file before but lost permission — minimal reconnect prompt
       if (hasStoredHandle()) { setNeedReconnect(true); setLoading(false); return }
 
-      // 5. Nothing found — show the connect screen
+      // 4. Nothing found — show the connect screen
       setLoading(false)
     }
     init()
   }, [])
 
-  // Wire up remote-change banners for both storage modes
+  // Wire up remote-change banner for file-picker mode (Tauri mode has no remote sync).
   useEffect(() => {
     onRemoteChange(() => setRemoteAlert(true))
-    onServerRemoteChange(() => setRemoteAlert(true))
   }, [])
 
   const navigate = (page) => setView(page)

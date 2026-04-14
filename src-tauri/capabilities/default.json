@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for Small Label Printing \u2014 read/write a fixed JSON data file, show native dialogs",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "D:/SmallLabel" },
+        { "path": "D:/SmallLabel/**" },
+        { "path": "**" }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,16 @@
-// Label printing via hidden iframe → window.print()
-// Label size: 34.4mm × 25mm (landscape) — configurable via settings
+// Label printing via hidden iframe or Tauri silent-print command.
+// Label size: 34.4mm × 25mm (landscape) — configurable via settings.
+//
+// Prints are queued one-at-a-time so multiple copies never race each other.
 
-export function printLabel(labelHTML, copies = 1, settings = {}) {
+import { invoke } from '@tauri-apps/api/core'
+
+function isTauri() {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+}
+
+// ── CSS builder ───────────────────────────────────────────────────────────────
+function buildPageCSS(settings = {}) {
   const w   = settings.labelWidth    || 34.4
   const h   = settings.labelHeight   || 25
   const pt  = settings.labelPadTop   || 1.8
@@ -14,121 +23,112 @@ export function printLabel(labelHTML, copies = 1, settings = {}) {
   const bfs = settings.batchFontSize || 6
   const sfs = settings.signFontSize  || 5.5
 
-  for (let i = 0; i < copies; i++) {
-    const iframe = document.createElement('iframe')
-    iframe.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${w}mm;height:${h}mm;border:none;`
-    document.body.appendChild(iframe)
-
-    const doc = iframe.contentDocument || iframe.contentWindow.document
-    doc.open()
-    doc.write(`<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-  @page {
-    size: ${w}mm ${h}mm;
-    margin: 0;
-  }
+  return `
+  @page { size: ${w}mm ${h}mm; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    width: ${w}mm;
-    height: ${h}mm;
+    width: ${w}mm; height: ${h}mm;
     font-family: ${ff}, sans-serif;
     overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     padding: ${pt}mm ${pr}mm ${pb}mm ${pl}mm;
   }
-  /* Drug name — fills available space, centred */
   .label-drug {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-size: ${dfs}pt;
-    font-weight: ${dfb ? 'bold' : 'normal'};
-    word-break: break-word;
-    line-height: 1.25;
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    text-align: center; font-size: ${dfs}pt; font-weight: ${dfb ? 'bold' : 'normal'};
+    word-break: break-word; line-height: 1.25;
   }
   .label-drug.small-font { font-size: ${Math.max(dfs - 1.5, 5)}pt; }
-  .label-drug.black-bg {
-    background: black;
-    color: white;
-    border-radius: 0.8mm;
-    padding: 0 1mm;
-  }
-  /* Expiry line (IP labels) */
+  .label-drug.black-bg   { background: black; color: white; border-radius: 0.8mm; padding: 0 1mm; }
   .label-exp {
     font-size: ${Math.max(sfs - 0.5, 4)}pt;
-    text-align: center;
+    text-align: left;
     padding-bottom: 0.5mm;
   }
-  /* Bat. No. — full-width underline */
   .label-bat {
-    display: flex;
-    align-items: baseline;
-    font-size: ${bfs}pt;
-    font-weight: bold;
-    margin-top: 1.2mm;
+    display: flex; align-items: baseline;
+    font-size: ${bfs}pt; font-weight: bold; margin-top: 1.2mm;
   }
   .label-bat-line {
-    flex: 1;
-    border-bottom: 0.25mm solid #000;
-    margin-left: 0.8mm;
-    height: 3mm;
-    font-weight: normal;
-    font-size: ${bfs}pt;
-    line-height: 2.8mm;
-    padding-left: 0.5mm;
+    flex: 1; border-bottom: 0.25mm solid #000; margin-left: 0.8mm;
+    height: 3mm; font-weight: normal; font-size: ${bfs}pt;
+    line-height: 2.8mm; padding-left: 0.5mm;
   }
-  /* Packed by / Checked by — side by side */
   .label-footer {
-    display: flex;
-    gap: 2mm;
-    margin-top: 1mm;
-    font-size: ${sfs}pt;
-    font-weight: bold;
+    display: flex; gap: 2mm; margin-top: 1mm;
+    font-size: ${sfs}pt; font-weight: bold;
   }
-  .label-footer-item {
-    display: flex;
-    align-items: baseline;
-    flex: 1;
-  }
-  .label-footer-line {
-    flex: 1;
-    border-bottom: 0.25mm solid #000;
-    margin-left: 0.5mm;
-    height: 3mm;
-  }
-  @media print {
-    html, body { width: ${w}mm; height: ${h}mm; }
-  }
-</style>
-</head>
-<body>
-${labelHTML}
-</body>
-</html>`)
-    doc.close()
+  .label-footer-item { display: flex; align-items: baseline; flex: 1; }
+  .label-footer-line  { flex: 1; border-bottom: 0.25mm solid #000; margin-left: 0.5mm; height: 3mm; }
+  @media print { html, body { width: ${w}mm; height: ${h}mm; } }
+  `
+}
 
-    iframe.contentWindow.focus()
-    setTimeout(() => {
+function buildFullPageHTML(labelHTML, settings) {
+  const css = buildPageCSS(settings)
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><style>${css}</style></head>
+<body>${labelHTML}</body>
+</html>`
+}
+
+// ── Serialised print queue ────────────────────────────────────────────────────
+// Each call to _enqueue returns a promise chained to the previous one,
+// so prints execute strictly one-at-a-time regardless of how fast they're queued.
+let _printQueue = Promise.resolve()
+
+function _enqueueIframe(labelHTML, settings) {
+  const w = settings.labelWidth  || 34.4
+  const h = settings.labelHeight || 25
+
+  _printQueue = _printQueue.then(() => new Promise(resolve => {
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText =
+      `position:fixed;left:-9999px;top:-9999px;width:${w}mm;height:${h}mm;border:none;`
+
+    // Use srcdoc so we get one clean load event with our content
+    iframe.srcdoc = buildFullPageHTML(labelHTML, settings)
+
+    iframe.onload = () => {
+      iframe.contentWindow.focus()
       iframe.contentWindow.print()
+      // Give the OS print spooler a moment, then clean up
       setTimeout(() => {
-        document.body.removeChild(iframe)
-      }, 1000)
-    }, 200)
+        try { document.body.removeChild(iframe) } catch (_) {}
+        resolve()
+      }, 800)
+    }
+
+    document.body.appendChild(iframe)
+  }))
+}
+
+function _enqueueSilent(labelHTML, settings) {
+  const w = settings.labelWidth  || 34.4
+  const h = settings.labelHeight || 25
+  const css = buildPageCSS(settings)
+
+  _printQueue = _printQueue.then(() =>
+    invoke('print_label_html', { html: labelHTML, css, widthMm: w, heightMm: h })
+      .catch(e => console.error('Silent print failed:', e))
+  )
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+export function printLabel(labelHTML, copies = 1, settings = {}) {
+  for (let i = 0; i < copies; i++) {
+    if (isTauri() && settings.silentPrint) {
+      _enqueueSilent(labelHTML, settings)
+    } else {
+      _enqueueIframe(labelHTML, settings)
+    }
   }
 }
 
-// Build small label HTML — landscape 34.4mm × 25mm
-// Layout (stacked):
-//   ┌─ drug name (centred, flex 1) ─┐
-//   │ Bat. No.: ___________________  │
-//   │ Packed by: ___  Checked by: __ │
-//   └───────────────────────────────┘
+// ── Label HTML builders ───────────────────────────────────────────────────────
+
+// Small label (34.4mm × 25mm landscape)
 export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings = {}) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const isPHEN18 = itemCode && itemCode.toUpperCase() === 'PHEN18'
@@ -140,7 +140,7 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
   ].filter(Boolean).join(' ')
 
   const batValue = lot && lot !== 'na----' ? lot : ''
-  const expRow = ipop === 'IP' && exp && exp !== 'na----'
+  const expRow   = ipop === 'IP' && exp && exp !== 'na----'
     ? `<div class="label-exp">Exp: ${exp}</div>`
     : ''
 
@@ -155,11 +155,11 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
   `
 }
 
-// Build ABX/OPLabel (3-column layout matching OPLabel sheet)
+// ABX / OPLabel (3-column, for batch record sheet)
 export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings = {}) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const drugStyle = isAUGM06 ? 'background:black;color:white;' : ''
-  const dfs = settings.drugFontSize || 8
+  const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7
   const col = `
     <div style="flex:1;padding:1mm;${drugStyle}">
@@ -171,7 +171,7 @@ export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings 
   return `<div style="display:flex;width:100%;height:100%;">${col}${col}${col}</div>`
 }
 
-// Build Extemp / EC label HTML
+// Extemp / EC label
 export function buildExtempLabelHTML(description, batchNo, expiry, storage, warning, note, settings = {}) {
   const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7
@@ -181,11 +181,11 @@ export function buildExtempLabelHTML(description, batchNo, expiry, storage, warn
     <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
     ${storage ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${storage}</div>` : ''}
     ${warning ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${warning}</div>` : ''}
-    ${note ? `<div style="font-size:${Math.max(bfs - 1, 5)}pt;margin-top:0.5mm;">${note}</div>` : ''}
+    ${note    ? `<div style="font-size:${Math.max(bfs - 1, 5)}pt;margin-top:0.5mm;">${note}</div>` : ''}
   `
 }
 
-// Build Prepack label HTML
+// Prepack label
 export function buildPrepackLabelHTML(description, batchNo, expiry, settings = {}) {
   const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7

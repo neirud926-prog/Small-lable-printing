@@ -81,6 +81,19 @@ export default function SmallLabelPrint({ navigate }) {
     setDrugName(''); setIpop(''); setLot(''); setExp(''); setItemCode(''); setError('')
   }
 
+  const autoPrintLabel = (drug, ipopType, lotVal, expVal) => {
+    const html = buildSmallLabelHTML(drug.name, ipopType, lotVal || '', expVal || '', drug.itemCode, settings)
+    printLabel(html, 1, settings)
+    setSuccess(true)
+    setTimeout(() => setSuccess(false), 1500)
+    // Clear for next scan
+    setTimeout(() => {
+      clearLabel()
+      setInput('')
+      inputRef.current?.focus()
+    }, 400)
+  }
+
   const resolveLabel = (code, ipopType, lotVal, expVal) => {
     const drug = findDrugByCode(code)
     if (!drug) {
@@ -93,6 +106,14 @@ export default function SmallLabelPrint({ navigate }) {
     setLot(lotVal || '')
     setExp(expVal || '')
     setError('')
+
+    // Auto-print when we have everything needed:
+    //   OP → always fine (no exp needed)
+    //   IP → only if exp is present (from barcode). Otherwise show form so user can type it.
+    const hasExp = expVal && expVal !== 'na----'
+    if (ipopType === 'OP' || (ipopType === 'IP' && hasExp)) {
+      autoPrintLabel(drug, ipopType, lotVal, expVal)
+    }
   }
 
   const processInput = (raw) => {
@@ -171,6 +192,17 @@ export default function SmallLabelPrint({ navigate }) {
     setLot(batchNo)
     setExp(expStr)
     setError('')
+
+    // Short-exp always has all info → print immediately
+    const html = buildSmallLabelHTML(drug.name, 'IP', batchNo, expStr, drug.itemCode, settings)
+    printLabel(html, 1, settings)
+    setSuccess(true)
+    setTimeout(() => setSuccess(false), 1500)
+    setTimeout(() => {
+      clearLabel()
+      setShortExpInput('')
+      shortExpRef.current?.focus()
+    }, 400)
   }
 
   const handleShortExpKey = (e) => {
@@ -258,7 +290,21 @@ export default function SmallLabelPrint({ navigate }) {
                       <div style={{ marginBottom: 2 }}>
                         <span className={`badge ${ipop === 'OP' ? 'badge-info' : 'badge-success'}`}>{ipop} Label</span>
                       </div>
-                      {exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
+                      {ipop === 'IP' && (
+                        <div style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                            Expiry date on label
+                          </label>
+                          <input
+                            className="form-input"
+                            style={{ width: 150, fontSize: 13 }}
+                            placeholder="e.g. 31-DEC-2026"
+                            value={exp}
+                            onChange={e => setExp(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {ipop !== 'IP' && exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
                       {lot && lot !== 'na----' && <div style={{ fontSize: 13 }}>Batch: <strong>{lot}</strong></div>}
                       <div style={{ marginTop: 16 }}>
                         <button className="btn btn-primary" onClick={handlePrint}>🖨 Print Label</button>

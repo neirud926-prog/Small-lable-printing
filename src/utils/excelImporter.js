@@ -109,16 +109,35 @@ export function extractExpAfterOpen(data) {
     }))
 }
 
-// Extract item locations from sheet data
-// Expected columns: itemCode (or "Item Code") and location (or "Location" / "Bin Location")
+// Extract item locations from sheet data.
+// Accepts any of these headers for item code: itemCode / Item Code / ITEM CODE / Item_Code / ItemCode
+// Accepts any of these headers for location: Bin No. / BIN NO. / Bin / BIN / Location / Bin Location / Loc / LOC
+// Falls back to regex-based header matching if none of the above match.
 export function extractLocations(data) {
+  if (!data || data.length === 0) return []
+
+  const keys    = Object.keys(data[0] || {})
+  const codeKey = keys.find(k => /item.?code/i.test(k)) || keys[0]
+  const binKey  = keys.find(k => /bin|location|loc/i.test(k)) || keys[1]
+
   return data
-    .filter(row => {
-      const code = row.itemCode || row['Item Code'] || row['ITEM CODE']
-      return code && code.toString().trim()
+    .map(row => {
+      const itemCode = (
+        row.itemCode || row['Item Code'] || row['ITEM CODE'] ||
+        row['Item_Code'] || row['ItemCode'] || row['ITEMCODE'] ||
+        (codeKey ? row[codeKey] : '') || ''
+      ).toString().trim().toUpperCase()
+
+      const location = (
+        row['Bin No.']  || row['BIN NO.']  || row['Bin_No'] ||
+        row['Bin']      || row['BIN']      || row['bin'] ||
+        row.location    || row['Location'] || row['LOCATION'] ||
+        row['Bin Location'] || row['BIN LOCATION'] ||
+        row['Loc']      || row['LOC']      || row['loc'] ||
+        (binKey ? row[binKey] : '') || ''
+      ).toString().trim()
+
+      return { itemCode, location }
     })
-    .map(row => ({
-      itemCode: (row.itemCode || row['Item Code'] || row['ITEM CODE'] || '').toString().trim().toUpperCase(),
-      location: (row.location || row['Location'] || row['LOCATION'] || row['Bin Location'] || row['BIN LOCATION'] || '').toString().trim(),
-    }))
+    .filter(r => r.itemCode && r.location && r.location !== '-')
 }

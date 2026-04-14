@@ -21,7 +21,14 @@
       "Bash(python \"d:\\\\Project\\\\Excel\\\\Small label\\\\inspect_sheets.py\")",
       "Bash(where node:*)",
       "Bash(where npm:*)",
-      "Bash(where npx:*)"
+      "Bash(where npx:*)",
+      "Bash(rustc --version)",
+      "Bash(cargo --version)",
+      "Bash(where cl.exe)",
+      "Bash(where link.exe)",
+      "Bash(winget install:*)",
+      "Bash(npx tauri:*)",
+      "Bash(export PATH=\"/c/Users/User/.cargo/bin:$PATH\")"
     ]
   }
 }

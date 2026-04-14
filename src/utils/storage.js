@@ -2,14 +2,14 @@
  * storage.js — unified data layer
  *
  * Priority:
- *   1. SERVER  (Express server via /api/store)   — best for multi-PC, auto-reconnects
- *   2. FILE    (shared JSON via File System API) — Chrome only, needs permission each session
- *   3. LOCAL   (localStorage)                    — single PC only
+ *   1. TAURI   (native fs at D:\SmallLabel\small-label-data.json) — default in app
+ *   2. FILE    (shared JSON via File System Access API)            — browser fallback
+ *   3. LOCAL   (localStorage)                                      — last-resort fallback
  *
  * localStorage is always kept as a write-through backup.
  */
 
-import * as ss from './serverStorage'
+import * as ts from './tauriStorage'
 import * as fs from './fileStorage'
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
@@ -26,14 +26,14 @@ function lsSet(key, value) {
 }
 
 function load(key, fallback) {
-  if (ss.isConnected()) return ss.get(key, lsGet(key, fallback))
+  if (ts.isConnected()) return ts.get(key, lsGet(key, fallback))
   if (fs.isConnected()) return fs.get(key, lsGet(key, fallback))
   return lsGet(key, fallback)
 }
 
 function save(key, value) {
   lsSet(key, value)             // always write localStorage as backup
-  if (ss.isConnected())      ss.set(key, value)
+  if (ts.isConnected())      ts.set(key, value)
   else if (fs.isConnected()) fs.set(key, value)
 }
 
@@ -49,6 +49,8 @@ const KEYS = {
   BATCH_COUNTERS:  'sml_batchCounters',
   SETTINGS:        'sml_settings',
   ITEM_LOCATIONS:  'sml_itemLocations',   // { itemCode → location string }
+  GTIN_MAP:        'sml_gtinMap',         // { gtin → itemCode }
+  DATA_PATHS:      'sml_dataPaths',       // { phq, location, gtin } file paths
 }
 
 // ── DRUGS ─────────────────────────────────────────────────────────────────────
@@ -148,6 +150,7 @@ export function getSettings() {
     printerName:     'Thermal GX420t - PMS',
     maintenancePin:  'NLTH',
     showPrintDialog: true,
+    silentPrint:     false,   // Tauri only — bypasses print dialog via Edge kiosk mode
     phqDatabasePath: '',
     // Label dimensions (mm)
     labelWidth:      34.4,
@@ -168,9 +171,23 @@ export function saveSettings(settings) {
   save(KEYS.SETTINGS, { ...getSettings(), ...settings })
 }
 
+// ── GTIN MAP ──────────────────────────────────────────────────────────────────
+/** Returns { GTIN: 'ITEMCODE', … } */
+export function getGtinMap()      { return load(KEYS.GTIN_MAP, {}) }
+export function saveGtinMap(map)  { save(KEYS.GTIN_MAP, map) }
+export function findByGtin(gtin)  { return getGtinMap()[gtin.trim()] || null }
+
+// ── DATA SOURCE PATHS ─────────────────────────────────────────────────────────
+export function getDataPaths() {
+  return load(KEYS.DATA_PATHS, { phq: '', location: '', gtin: '' })
+}
+export function saveDataPaths(paths) {
+  save(KEYS.DATA_PATHS, { ...getDataPaths(), ...paths })
+}
+
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
 export function exportAllData() {
-  if (ss.isConnected()) return JSON.stringify(ss.getAll(), null, 2)
+  if (ts.isConnected()) return JSON.stringify(ts.getAll(), null, 2)
   const data = {}
   Object.values(KEYS).forEach(k => { data[k] = load(k, null) })
   return JSON.stringify(data, null, 2)
@@ -179,6 +196,6 @@ export function exportAllData() {
 export async function importAllData(jsonString) {
   const data = JSON.parse(jsonString)
   Object.entries(data).forEach(([k, v]) => { if (v !== null) lsSet(k, v) })
-  if (ss.isConnected())      await ss.setAll(data)
+  if (ts.isConnected())      await ts.setAll(data)
   else if (fs.isConnected()) await fs.setAll(data)
 }
