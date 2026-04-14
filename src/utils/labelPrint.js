@@ -1,10 +1,22 @@
 // Label printing via hidden iframe → window.print()
-// Label size: 34.4mm × 25mm (landscape)
+// Label size: 34.4mm × 25mm (landscape) — configurable via settings
 
-export function printLabel(labelHTML, copies = 1) {
+export function printLabel(labelHTML, copies = 1, settings = {}) {
+  const w   = settings.labelWidth    || 34.4
+  const h   = settings.labelHeight   || 25
+  const pt  = settings.labelPadTop   || 1.8
+  const pb  = settings.labelPadBottom|| 1.4
+  const pl  = settings.labelPadLeft  || 2.2
+  const pr  = settings.labelPadRight || 2.2
+  const ff  = settings.fontFamily    || 'Arial'
+  const dfs = settings.drugFontSize  || 8.5
+  const dfb = settings.drugFontBold  !== false
+  const bfs = settings.batchFontSize || 6
+  const sfs = settings.signFontSize  || 5.5
+
   for (let i = 0; i < copies; i++) {
     const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:34.4mm;height:25mm;border:none;'
+    iframe.style.cssText = `position:fixed;left:-9999px;top:-9999px;width:${w}mm;height:${h}mm;border:none;`
     document.body.appendChild(iframe)
 
     const doc = iframe.contentDocument || iframe.contentWindow.document
@@ -15,18 +27,18 @@ export function printLabel(labelHTML, copies = 1) {
 <meta charset="UTF-8">
 <style>
   @page {
-    size: 34.4mm 25mm;
+    size: ${w}mm ${h}mm;
     margin: 0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    width: 34.4mm;
-    height: 25mm;
-    font-family: Arial, sans-serif;
+    width: ${w}mm;
+    height: ${h}mm;
+    font-family: ${ff}, sans-serif;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding: 1.8mm 2.2mm 1.4mm;
+    padding: ${pt}mm ${pr}mm ${pb}mm ${pl}mm;
   }
   /* Drug name — fills available space, centred */
   .label-drug {
@@ -35,12 +47,12 @@ export function printLabel(labelHTML, copies = 1) {
     align-items: center;
     justify-content: center;
     text-align: center;
-    font-size: 8.5pt;
-    font-weight: bold;
+    font-size: ${dfs}pt;
+    font-weight: ${dfb ? 'bold' : 'normal'};
     word-break: break-word;
     line-height: 1.25;
   }
-  .label-drug.small-font { font-size: 7pt; }
+  .label-drug.small-font { font-size: ${Math.max(dfs - 1.5, 5)}pt; }
   .label-drug.black-bg {
     background: black;
     color: white;
@@ -49,7 +61,7 @@ export function printLabel(labelHTML, copies = 1) {
   }
   /* Expiry line (IP labels) */
   .label-exp {
-    font-size: 5.5pt;
+    font-size: ${Math.max(sfs - 0.5, 4)}pt;
     text-align: center;
     padding-bottom: 0.5mm;
   }
@@ -57,7 +69,7 @@ export function printLabel(labelHTML, copies = 1) {
   .label-bat {
     display: flex;
     align-items: baseline;
-    font-size: 6pt;
+    font-size: ${bfs}pt;
     font-weight: bold;
     margin-top: 1.2mm;
   }
@@ -67,7 +79,7 @@ export function printLabel(labelHTML, copies = 1) {
     margin-left: 0.8mm;
     height: 3mm;
     font-weight: normal;
-    font-size: 6pt;
+    font-size: ${bfs}pt;
     line-height: 2.8mm;
     padding-left: 0.5mm;
   }
@@ -76,7 +88,7 @@ export function printLabel(labelHTML, copies = 1) {
     display: flex;
     gap: 2mm;
     margin-top: 1mm;
-    font-size: 5.5pt;
+    font-size: ${sfs}pt;
     font-weight: bold;
   }
   .label-footer-item {
@@ -91,7 +103,7 @@ export function printLabel(labelHTML, copies = 1) {
     height: 3mm;
   }
   @media print {
-    html, body { width: 34.4mm; height: 25mm; }
+    html, body { width: ${w}mm; height: ${h}mm; }
   }
 </style>
 </head>
@@ -117,7 +129,7 @@ ${labelHTML}
 //   │ Bat. No.: ___________________  │
 //   │ Packed by: ___  Checked by: __ │
 //   └───────────────────────────────┘
-export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode) {
+export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings = {}) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const isPHEN18 = itemCode && itemCode.toUpperCase() === 'PHEN18'
 
@@ -144,36 +156,42 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode) {
 }
 
 // Build ABX/OPLabel (3-column layout matching OPLabel sheet)
-export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode) {
+export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings = {}) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const drugStyle = isAUGM06 ? 'background:black;color:white;' : ''
+  const dfs = settings.drugFontSize || 8
+  const bfs = settings.batchFontSize || 7
   const col = `
     <div style="flex:1;padding:1mm;${drugStyle}">
-      <div style="font-size:8pt;font-weight:bold;min-height:12mm;display:flex;align-items:center;justify-content:center;text-align:center;">${drugName}</div>
-      <div style="font-size:7pt;margin-top:1mm;">Batch No:<br/><span style="font-size:9pt;font-weight:bold;">${batchNo}</span></div>
-      <div style="font-size:7pt;margin-top:1mm;">Use Before:<br/><span style="font-size:11pt;font-weight:bold;">${expiry}</span></div>
+      <div style="font-size:${dfs}pt;font-weight:bold;min-height:12mm;display:flex;align-items:center;justify-content:center;text-align:center;">${drugName}</div>
+      <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No:<br/><span style="font-size:${bfs + 2}pt;font-weight:bold;">${batchNo}</span></div>
+      <div style="font-size:${bfs}pt;margin-top:1mm;">Use Before:<br/><span style="font-size:${bfs + 4}pt;font-weight:bold;">${expiry}</span></div>
     </div>
   `
   return `<div style="display:flex;width:100%;height:100%;">${col}${col}${col}</div>`
 }
 
 // Build Extemp / EC label HTML
-export function buildExtempLabelHTML(description, batchNo, expiry, storage, warning, note) {
+export function buildExtempLabelHTML(description, batchNo, expiry, storage, warning, note, settings = {}) {
+  const dfs = settings.drugFontSize  || 8
+  const bfs = settings.batchFontSize || 7
   return `
-    <div style="font-size:8pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
-    <div style="font-size:7pt;margin-top:1mm;">Batch No.: <strong>${batchNo}</strong></div>
-    <div style="font-size:7pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
-    ${storage ? `<div style="font-size:7pt;margin-top:0.5mm;">${storage}</div>` : ''}
-    ${warning ? `<div style="font-size:7pt;margin-top:0.5mm;">${warning}</div>` : ''}
-    ${note ? `<div style="font-size:6pt;margin-top:0.5mm;">${note}</div>` : ''}
+    <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
+    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No.: <strong>${batchNo}</strong></div>
+    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
+    ${storage ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${storage}</div>` : ''}
+    ${warning ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${warning}</div>` : ''}
+    ${note ? `<div style="font-size:${Math.max(bfs - 1, 5)}pt;margin-top:0.5mm;">${note}</div>` : ''}
   `
 }
 
 // Build Prepack label HTML
-export function buildPrepackLabelHTML(description, batchNo, expiry) {
+export function buildPrepackLabelHTML(description, batchNo, expiry, settings = {}) {
+  const dfs = settings.drugFontSize  || 8
+  const bfs = settings.batchFontSize || 7
   return `
-    <div style="font-size:8pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
-    <div style="font-size:7pt;margin-top:1mm;">Batch No: <strong>${batchNo}</strong></div>
-    <div style="font-size:7pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
+    <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
+    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No: <strong>${batchNo}</strong></div>
+    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
   `
 }

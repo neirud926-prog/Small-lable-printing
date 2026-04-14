@@ -4,10 +4,11 @@ import {
   saveDrugs, getDrugs, saveExpiryRules, getExpiryRules,
   saveAbxList, getAbxList, savePrepackList, getPrepackList,
   saveExtempList, getExtempList, saveExpAfterOpen, getExpAfterOpen,
+  getItemLocations, saveItemLocations,
 } from '../../utils/storage'
 import {
   parseExcelFile, extractDrugs, extractExpiryRules, extractAbx,
-  extractPrepack, extractExtemp, extractExpAfterOpen,
+  extractPrepack, extractExtemp, extractExpAfterOpen, extractLocations,
 } from '../../utils/excelImporter'
 
 const IMPORT_MODES = [
@@ -17,6 +18,7 @@ const IMPORT_MODES = [
   { key: 'prepack', label: 'Prepack', icon: '📦' },
   { key: 'extemp', label: 'Extemp', icon: '⚗️' },
   { key: 'expAfterOpen', label: 'Exp After Open', icon: '⏰' },
+  { key: 'locations', label: 'Item Locations', icon: '📍' },
 ]
 
 export default function ExcelImporter() {
@@ -66,6 +68,9 @@ export default function ExcelImporter() {
         case 'expAfterOpen':
           extractedData = extractExpAfterOpen(sheetData)
           break
+        case 'locations':
+          extractedData = extractLocations(sheetData)
+          break
         default:
           break
       }
@@ -112,6 +117,13 @@ export default function ExcelImporter() {
           existing = getExpAfterOpen()
           saveExpAfterOpen(replaceAll ? preview.data : [...existing, ...preview.data])
           break
+        case 'locations': {
+          // Locations are stored as a map { ITEMCODE: 'location' }
+          const existingMap = replaceAll ? {} : getItemLocations()
+          preview.data.forEach(row => { existingMap[row.itemCode] = row.location })
+          saveItemLocations(existingMap)
+          break
+        }
         default:
           break
       }
@@ -198,6 +210,9 @@ export default function ExcelImporter() {
                 )}
                 {mode === 'expAfterOpen' && (
                   <div>itemCode, days</div>
+                )}
+                {mode === 'locations' && (
+                  <div>itemCode (or "Item Code"), location (or "Location" / "Bin Location")</div>
                 )}
               </div>
             </div>

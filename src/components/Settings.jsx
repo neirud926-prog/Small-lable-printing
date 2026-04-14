@@ -222,6 +222,108 @@ export default function Settings({ navigate }) {
           </div>
         </div>
 
+        {/* Label & Printer Settings */}
+        <div className="card">
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷️ Label Dimensions & Typography</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+            Adjust these if your printed labels don't fill the label stock correctly.
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="form-group">
+              <label className="form-label">Label Width (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelWidth ?? 34.4}
+                onChange={e => set('labelWidth', parseFloat(e.target.value) || 34.4)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Label Height (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelHeight ?? 25}
+                onChange={e => set('labelHeight', parseFloat(e.target.value) || 25)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Font Family</label>
+              <select className="form-select" value={settings.fontFamily || 'Arial'}
+                onChange={e => set('fontFamily', e.target.value)}>
+                {['Arial', 'Helvetica', 'Calibri', 'Tahoma', 'Verdana', 'Courier New', 'Times New Roman'].map(f =>
+                  <option key={f} value={f}>{f}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="form-group">
+              <label className="form-label">Pad Top (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelPadTop ?? 1.8}
+                onChange={e => set('labelPadTop', parseFloat(e.target.value) || 0)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Pad Bottom (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelPadBottom ?? 1.4}
+                onChange={e => set('labelPadBottom', parseFloat(e.target.value) || 0)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Pad Left (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelPadLeft ?? 2.2}
+                onChange={e => set('labelPadLeft', parseFloat(e.target.value) || 0)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Pad Right (mm)</label>
+              <input className="form-input" type="number" step="0.1" value={settings.labelPadRight ?? 2.2}
+                onChange={e => set('labelPadRight', parseFloat(e.target.value) || 0)} />
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Drug Name Size (pt)</label>
+              <input className="form-input" type="number" step="0.5" value={settings.drugFontSize ?? 8.5}
+                onChange={e => set('drugFontSize', parseFloat(e.target.value) || 8.5)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Batch No. Size (pt)</label>
+              <input className="form-input" type="number" step="0.5" value={settings.batchFontSize ?? 6}
+                onChange={e => set('batchFontSize', parseFloat(e.target.value) || 6)} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Signature Size (pt)</label>
+              <input className="form-input" type="number" step="0.5" value={settings.signFontSize ?? 5.5}
+                onChange={e => set('signFontSize', parseFloat(e.target.value) || 5.5)} />
+            </div>
+          </div>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 4 }}>
+            <input type="checkbox" checked={settings.drugFontBold !== false}
+              onChange={e => set('drugFontBold', e.target.checked)} />
+            <span>Bold drug name</span>
+          </label>
+
+          <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+            Default: 34.4 × 25 mm · Arial · Drug 8.5pt bold · Batch 6pt · Sign 5.5pt
+          </div>
+        </div>
+
+        {/* MS Access guide */}
+        <div className="card" style={{ borderLeft: '4px solid var(--warning)' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🗄️ Import Drug Database from MS Access</div>
+          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            <p style={{ marginBottom: 10, color: 'var(--text-muted)' }}>
+              This app cannot connect to MS Access directly (browser limitation).
+              Export your PHQ table as Excel, then import it here.
+            </p>
+            <ol style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <li>Open MS Access → open your PHQ database</li>
+              <li>Select the drug/PHQ table in the left panel</li>
+              <li>Click <strong>External Data</strong> → <strong>Export</strong> → <strong>Excel (.xlsx)</strong></li>
+              <li>Save the file anywhere on your PC</li>
+              <li>In this app: <strong>Maintenance → Import Excel → Drugs (PHQ)</strong></li>
+              <li>Select the exported <code>.xlsx</code> file → click <strong>Replace All</strong></li>
+            </ol>
+            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+              Required columns: <code>itemCode</code>, <code>name</code>, <code>unit</code> (optional: <code>isSpecial</code>)
+            </p>
+          </div>
+        </div>
+
         {/* Change PIN */}
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🔒 Change Maintenance PIN</div>

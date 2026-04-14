@@ -63,13 +63,13 @@ export default function AbxTab() {
     const copies = Math.ceil((parseInt(factor) + 1) / 3)
 
     // ABX label
-    const abxHtml = buildAbxLabelHTML(description, batchNo, expiry, itemCode)
-    printLabel(abxHtml, copies)
+    const abxHtml = buildAbxLabelHTML(description, batchNo, expiry, itemCode, settings)
+    printLabel(abxHtml, copies, settings)
 
-    // If IP toggle selected, also print small IP label
-    if (ipopToggle === 'IP') {
-      const smallHtml = buildSmallLabelHTML(description, 'IP', batchNo, expiry, itemCode)
-      printLabel(smallHtml, 1)
+    // Print small label (OP or IP) — one per vial/pack reconstituted
+    if (ipopToggle !== 'None') {
+      const smallHtml = buildSmallLabelHTML(description, ipopToggle, batchNo, expiry, itemCode, settings)
+      printLabel(smallHtml, parseInt(factor), settings)
     }
 
     // Save batch record
@@ -169,7 +169,9 @@ export default function AbxTab() {
       </div>
 
       <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
-        Labels to print: <strong>{Math.ceil((parseInt(factor) + 1) / 3)}</strong> copies (3 labels per sheet) · Location: <strong>{storageKey}</strong>
+        ABX labels: <strong>{Math.ceil((parseInt(factor) + 1) / 3)}</strong> sheets (3 per sheet)
+        {ipopToggle !== 'None' && <> · Small labels: <strong>{parseInt(factor)}</strong> (1 per vial)</>}
+        {' · '}Location: <strong>{storageKey}</strong>
       </div>
     </div>
   )

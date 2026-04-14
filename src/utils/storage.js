@@ -39,15 +39,16 @@ function save(key, value) {
 
 // ── Key constants ─────────────────────────────────────────────────────────────
 const KEYS = {
-  DRUGS:          'sml_drugs',
-  EXPIRY_RULES:   'sml_expiryRules',
-  ABX:            'sml_abx',
-  PREPACK:        'sml_prepack',
-  EXTEMP:         'sml_extemp',
-  EXP_AFTER_OPEN: 'sml_expAfterOpen',
-  BATCH_RECORDS:  'sml_batchRecords',
-  BATCH_COUNTERS: 'sml_batchCounters',
-  SETTINGS:       'sml_settings',
+  DRUGS:           'sml_drugs',
+  EXPIRY_RULES:    'sml_expiryRules',
+  ABX:             'sml_abx',
+  PREPACK:         'sml_prepack',
+  EXTEMP:          'sml_extemp',
+  EXP_AFTER_OPEN:  'sml_expAfterOpen',
+  BATCH_RECORDS:   'sml_batchRecords',
+  BATCH_COUNTERS:  'sml_batchCounters',
+  SETTINGS:        'sml_settings',
+  ITEM_LOCATIONS:  'sml_itemLocations',   // { itemCode → location string }
 }
 
 // ── DRUGS ─────────────────────────────────────────────────────────────────────
@@ -132,6 +133,14 @@ export function resetCounter(location, value) {
   save(KEYS.BATCH_COUNTERS, c)
 }
 
+// ── ITEM LOCATIONS ────────────────────────────────────────────────────────────
+/** Returns { ITEMCODE: 'location string', … } */
+export function getItemLocations()      { return load(KEYS.ITEM_LOCATIONS, {}) }
+export function saveItemLocations(map)  { save(KEYS.ITEM_LOCATIONS, map) }
+export function getItemLocation(code)   {
+  return getItemLocations()[code.toUpperCase()] || ''
+}
+
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 export function getSettings() {
   return load(KEYS.SETTINGS, {
@@ -140,6 +149,19 @@ export function getSettings() {
     maintenancePin:  'NLTH',
     showPrintDialog: true,
     phqDatabasePath: '',
+    // Label dimensions (mm)
+    labelWidth:      34.4,
+    labelHeight:     25,
+    labelPadTop:     1.8,
+    labelPadBottom:  1.4,
+    labelPadLeft:    2.2,
+    labelPadRight:   2.2,
+    // Typography
+    fontFamily:      'Arial',
+    drugFontSize:    8.5,
+    drugFontBold:    true,
+    batchFontSize:   6,
+    signFontSize:    5.5,
   })
 }
 export function saveSettings(settings) {

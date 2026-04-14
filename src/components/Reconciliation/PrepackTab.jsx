@@ -55,8 +55,8 @@ export default function PrepackTab() {
   }
 
   const doPrint = (useExpiry) => {
-    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry)
-    printLabel(html, parseInt(labelCount))
+    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry, settings)
+    printLabel(html, parseInt(labelCount), settings)
 
     addBatchRecord({
       date: new Date().toLocaleDateString('en-CA'),
