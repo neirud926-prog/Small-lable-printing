@@ -7,7 +7,7 @@ import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
 
 function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
   if (!drugName) return null
-  const isBlack = itemCode && itemCode.toUpperCase() === 'AUGM06'
+  const isBlack  = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const batValue = lot && lot !== 'na----' ? lot : ''
   return (
     <motion.div
@@ -16,16 +16,14 @@ function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
       className="label-preview"
       style={{ margin: '0 auto' }}
     >
-      <div className="lp-drug-col">
-        <div className={`lp-drug ${isBlack ? 'lp-black' : ''}`}>{drugName}</div>
-        {ipop === 'IP' && exp && exp !== 'na----' && (
-          <div className="lp-expiry">Exp: {exp}</div>
-        )}
-      </div>
-      <div className="lp-fields-col">
-        <div className="lp-field">Bat. No.:<span className="lp-field-line">{batValue}</span></div>
-        <div className="lp-field">Packed by:<span className="lp-field-line"></span></div>
-        <div className="lp-field">Checked by:<span className="lp-field-line"></span></div>
+      <div className={`lp-drug ${isBlack ? 'lp-black' : ''}`}>{drugName}</div>
+      {ipop === 'IP' && exp && exp !== 'na----' && (
+        <div className="lp-expiry">Exp: {exp}</div>
+      )}
+      <div className="lp-bat">Bat. No.:<span className="lp-bat-line">{batValue}</span></div>
+      <div className="lp-footer">
+        <div className="lp-footer-item">Packed by:<span className="lp-footer-line"></span></div>
+        <div className="lp-footer-item">Checked by:<span className="lp-footer-line"></span></div>
       </div>
     </motion.div>
   )

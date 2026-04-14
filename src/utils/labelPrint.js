@@ -25,59 +25,70 @@ export function printLabel(labelHTML, copies = 1) {
     font-family: Arial, sans-serif;
     overflow: hidden;
     display: flex;
-    flex-direction: row;
-  }
-  /* Left column: drug name */
-  .label-drug-col {
-    flex: 0 0 56%;
-    display: flex;
     flex-direction: column;
+    padding: 1.8mm 2.2mm 1.4mm;
+  }
+  /* Drug name — fills available space, centred */
+  .label-drug {
+    flex: 1;
+    display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1.5mm;
-    border-right: 0.3mm solid #000;
-  }
-  .label-drug {
-    font-size: 9pt;
-    font-weight: bold;
     text-align: center;
+    font-size: 8.5pt;
+    font-weight: bold;
     word-break: break-word;
-    line-height: 1.2;
+    line-height: 1.25;
   }
   .label-drug.small-font { font-size: 7pt; }
   .label-drug.black-bg {
     background: black;
     color: white;
-    padding: 1mm;
-    border-radius: 1mm;
+    border-radius: 0.8mm;
+    padding: 0 1mm;
   }
+  /* Expiry line (IP labels) */
   .label-exp {
     font-size: 5.5pt;
     text-align: center;
-    margin-top: 1mm;
-    width: 100%;
+    padding-bottom: 0.5mm;
   }
-  /* Right column: form fields */
-  .label-fields-col {
-    flex: 1;
+  /* Bat. No. — full-width underline */
+  .label-bat {
     display: flex;
-    flex-direction: column;
-    justify-content: space-evenly;
-    padding: 1mm 1.5mm;
+    align-items: baseline;
+    font-size: 6pt;
+    font-weight: bold;
+    margin-top: 1.2mm;
   }
-  .label-field {
+  .label-bat-line {
+    flex: 1;
+    border-bottom: 0.25mm solid #000;
+    margin-left: 0.8mm;
+    height: 3mm;
+    font-weight: normal;
+    font-size: 6pt;
+    line-height: 2.8mm;
+    padding-left: 0.5mm;
+  }
+  /* Packed by / Checked by — side by side */
+  .label-footer {
+    display: flex;
+    gap: 2mm;
+    margin-top: 1mm;
     font-size: 5.5pt;
     font-weight: bold;
-    line-height: 1;
   }
-  .label-field-line {
-    display: block;
+  .label-footer-item {
+    display: flex;
+    align-items: baseline;
+    flex: 1;
+  }
+  .label-footer-line {
+    flex: 1;
     border-bottom: 0.25mm solid #000;
-    width: 100%;
-    margin-top: 0.8mm;
-    min-height: 2.5mm;
-    font-weight: normal;
-    font-size: 5.5pt;
+    margin-left: 0.5mm;
+    height: 3mm;
   }
   @media print {
     html, body { width: 34.4mm; height: 25mm; }
@@ -101,7 +112,11 @@ ${labelHTML}
 }
 
 // Build small label HTML — landscape 34.4mm × 25mm
-// Layout: drug name (left col) | Bat.No. / Packed by / Checked by (right col)
+// Layout (stacked):
+//   ┌─ drug name (centred, flex 1) ─┐
+//   │ Bat. No.: ___________________  │
+//   │ Packed by: ___  Checked by: __ │
+//   └───────────────────────────────┘
 export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const isPHEN18 = itemCode && itemCode.toUpperCase() === 'PHEN18'
@@ -118,14 +133,12 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode) {
     : ''
 
   return `
-    <div class="label-drug-col">
-      <div class="${drugClass}">${drugName}</div>
-      ${expRow}
-    </div>
-    <div class="label-fields-col">
-      <div class="label-field">Bat. No.:<span class="label-field-line">${batValue}</span></div>
-      <div class="label-field">Packed by:<span class="label-field-line"></span></div>
-      <div class="label-field">Checked by:<span class="label-field-line"></span></div>
+    <div class="${drugClass}">${drugName}</div>
+    ${expRow}
+    <div class="label-bat">Bat. No.:<span class="label-bat-line">${batValue}</span></div>
+    <div class="label-footer">
+      <div class="label-footer-item">Packed by:<span class="label-footer-line"></span></div>
+      <div class="label-footer-item">Checked by:<span class="label-footer-line"></span></div>
     </div>
   `
 }
