@@ -4,8 +4,9 @@ Vba Project/
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (keep the compiled app so users can open it directly)
 dist/
+!dist/index.html
 
 # Environment files
 .env
