@@ -68,8 +68,11 @@ export function hasStoredHandle()   { return !!localStorage.getItem('sml_connect
 // ── Permission helper ─────────────────────────────────────────────────────────
 async function ensurePermission(handle) {
   const opts = { mode: 'readwrite' }
-  if (await handle.queryPermission(opts) === 'granted')  return true
-  if (await handle.requestPermission(opts) === 'granted') return true
+  if (await handle.queryPermission(opts) === 'granted') return true
+  try {
+    // requestPermission() requires an active user gesture — may throw on file:// origins
+    if (await handle.requestPermission(opts) === 'granted') return true
+  } catch { /* no user gesture or disallowed context — fall through */ }
   return false
 }
 
@@ -124,6 +127,7 @@ export async function pickExisting() {
   const [handle] = await window.showOpenFilePicker({
     types: [{ description: 'JSON Data File', accept: { 'application/json': ['.json'] } }],
     multiple: false,
+    mode: 'readwrite',   // request readwrite during the picker — no second prompt needed
   })
   await _connect(handle)
   await idbSet(IDB_KEY, handle)
