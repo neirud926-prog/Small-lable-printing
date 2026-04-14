@@ -6,7 +6,9 @@ import Reconciliation from './components/Reconciliation/index'
 import Maintenance from './components/Maintenance/index'
 import Settings from './components/Settings'
 import FileConnect from './components/FileConnect'
-import { tryRestore, onRemoteChange, isConnected } from './utils/fileStorage'
+import { tryRestore, onRemoteChange }                        from './utils/fileStorage'
+import { tryRestore as tryServerRestore, tryConnect as tryServerConnect,
+         onRemoteChange as onServerRemoteChange }             from './utils/serverStorage'
 
 const pageVariants = {
   initial: { opacity: 0, x: 40 },
@@ -20,16 +22,31 @@ export default function App() {
   const [loading,     setLoading]     = useState(true)    // while tryRestore() runs
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
 
-  // On mount: try to restore a previously saved file handle
+  // On mount: auto-connect using the best available storage
   useEffect(() => {
-    tryRestore()
-      .then(ok => { if (ok) setConnected(true) })
-      .finally(() => setLoading(false))
+    async function init() {
+      // 1. Try previously-saved server URL
+      if (await tryServerRestore()) { setConnected(true); setLoading(false); return }
+
+      // 2. Try same-origin server (app opened via http://localhost:3000 or LAN IP)
+      const origin = window.location.origin
+      if (origin.startsWith('http')) {
+        if (await tryServerConnect(origin)) { setConnected(true); setLoading(false); return }
+      }
+
+      // 3. Try previously-picked shared file (File System Access API)
+      if (await tryRestore()) { setConnected(true); setLoading(false); return }
+
+      // 4. Nothing found — show the connect screen
+      setLoading(false)
+    }
+    init()
   }, [])
 
-  // Wire up the remote-change callback (poll fires every 30 s)
+  // Wire up remote-change banners for both storage modes
   useEffect(() => {
     onRemoteChange(() => setRemoteAlert(true))
+    onServerRemoteChange(() => setRemoteAlert(true))
   }, [])
 
   const navigate = (page) => setView(page)

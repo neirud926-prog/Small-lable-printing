@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getSettings, saveSettings, exportAllData, importAllData } from '../utils/storage'
-import { isConnected, getFileName, disconnect } from '../utils/fileStorage'
+import { isConnected as isFileConnected, getFileName, disconnect as fileDisconnect } from '../utils/fileStorage'
+import { isConnected as isServerConnected, getBaseUrl,
+         disconnect as serverDisconnect, tryConnect as tryServerConnect } from '../utils/serverStorage'
 
 const LOCATIONS = ['IP/OP', 'EC', 'SM']
 
@@ -11,6 +13,8 @@ export default function Settings({ navigate }) {
   const [pinForm, setPinForm]    = useState({ current: '', newPin: '', confirm: '' })
   const [pinMsg, setPinMsg]      = useState('')
   const [importMsg, setImportMsg] = useState('')
+  const [serverUrlInput, setServerUrlInput] = useState(getBaseUrl() || 'http://localhost:3000')
+  const [serverMsg, setServerMsg] = useState('')
 
   const set = (k, v) => _setSettings(s => ({ ...s, [k]: v }))
 
@@ -81,30 +85,78 @@ export default function Settings({ navigate }) {
 
       <div className="page-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* Shared file status */}
-        <div className="card" style={{ borderLeft: `4px solid ${isConnected() ? 'var(--success)' : 'var(--warning)'}`, padding: '10px 14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-            <span style={{ fontSize: 20 }}>{isConnected() ? '🗂️' : '💻'}</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700 }}>
-                {isConnected() ? 'Shared File Connected' : 'Not connected to shared file'}
+        {/* Data connection status */}
+        {(() => {
+          const serverOk = isServerConnected()
+          const fileOk   = isFileConnected()
+          const color  = serverOk ? 'var(--primary)' : fileOk ? 'var(--success)' : 'var(--warning)'
+          const icon   = serverOk ? '🖥️' : fileOk ? '🗂️' : '💻'
+          const title  = serverOk ? 'Server Connected' : fileOk ? 'Shared File Connected' : 'Local Storage Only'
+          const detail = serverOk ? `Server: ${getBaseUrl()}`
+                       : fileOk   ? `File: ${getFileName()}`
+                       : 'Data is stored on this PC only. Connect to a server or shared file to share across PCs.'
+
+          const handleDisconnect = async () => {
+            if (serverOk) serverDisconnect()
+            if (fileOk)   await fileDisconnect()
+            window.location.reload()
+          }
+
+          const handleReconnectServer = async () => {
+            setServerMsg('')
+            const ok = await tryServerConnect(serverUrlInput)
+            if (ok) { setServerMsg('✓ Connected!'); setTimeout(() => window.location.reload(), 800) }
+            else    { setServerMsg('✗ Could not reach server. Is START-SERVER.bat running?') }
+          }
+
+          return (
+            <div className="card" style={{ borderLeft: `4px solid ${color}`, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                <span style={{ fontSize: 20 }}>{icon}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700 }}>{title}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{detail}</div>
+                </div>
+                {(serverOk || fileOk) && (
+                  <button className="btn btn-ghost btn-sm" onClick={handleDisconnect}>
+                    Change
+                  </button>
+                )}
               </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                {isConnected()
-                  ? `Data file: ${getFileName()}`
-                  : 'Using local storage on this PC only.'}
+
+              {/* Server URL editor — shown when connected to server, or to set one up */}
+              <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                  {serverOk ? 'Server URL' : 'Connect to a server'}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="form-input"
+                    style={{ flex: 1, fontSize: 13 }}
+                    value={serverUrlInput}
+                    onChange={e => setServerUrlInput(e.target.value)}
+                    placeholder="http://localhost:3000"
+                    onKeyDown={e => e.key === 'Enter' && handleReconnectServer()}
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={handleReconnectServer}
+                    style={{ whiteSpace: 'nowrap' }}>
+                    {serverOk ? 'Reconnect' : 'Connect'}
+                  </button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Same PC: <code>http://localhost:3000</code> &nbsp;·&nbsp;
+                  Other PC: <code>http://&lt;server-IP&gt;:3000</code>
+                </div>
+                {serverMsg && (
+                  <div style={{ marginTop: 6, fontSize: 12,
+                    color: serverMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)' }}>
+                    {serverMsg}
+                  </div>
+                )}
               </div>
             </div>
-            {isConnected() && (
-              <button
-                className="btn btn-ghost btn-sm"
-                onClick={async () => { await disconnect(); window.location.reload() }}
-              >
-                Change File
-              </button>
-            )}
-          </div>
-        </div>
+          )
+        })()}
 
         {/* General Settings */}
         <div className="card">

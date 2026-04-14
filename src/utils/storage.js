@@ -1,13 +1,15 @@
 /**
  * storage.js — unified data layer
  *
- * CONNECTED  (shared file picked)  →  reads/writes via fileStorage (shared JSON on network drive)
- * FALLBACK   (no file picked yet)  →  reads/writes localStorage (single PC only)
+ * Priority:
+ *   1. SERVER  (Express server via /api/store)   — best for multi-PC, auto-reconnects
+ *   2. FILE    (shared JSON via File System API) — Chrome only, needs permission each session
+ *   3. LOCAL   (localStorage)                    — single PC only
  *
- * localStorage is also kept as a write-through cache so the app works
- * even if the file briefly can't be written (e.g. network hiccup).
+ * localStorage is always kept as a write-through backup.
  */
 
+import * as ss from './serverStorage'
 import * as fs from './fileStorage'
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
@@ -24,13 +26,15 @@ function lsSet(key, value) {
 }
 
 function load(key, fallback) {
+  if (ss.isConnected()) return ss.get(key, lsGet(key, fallback))
   if (fs.isConnected()) return fs.get(key, lsGet(key, fallback))
   return lsGet(key, fallback)
 }
 
 function save(key, value) {
   lsSet(key, value)             // always write localStorage as backup
-  if (fs.isConnected()) fs.set(key, value)
+  if (ss.isConnected())      ss.set(key, value)
+  else if (fs.isConnected()) fs.set(key, value)
 }
 
 // ── Key constants ─────────────────────────────────────────────────────────────
@@ -144,6 +148,7 @@ export function saveSettings(settings) {
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
 export function exportAllData() {
+  if (ss.isConnected()) return JSON.stringify(ss.getAll(), null, 2)
   const data = {}
   Object.values(KEYS).forEach(k => { data[k] = load(k, null) })
   return JSON.stringify(data, null, 2)
@@ -151,8 +156,7 @@ export function exportAllData() {
 
 export async function importAllData(jsonString) {
   const data = JSON.parse(jsonString)
-  // write to localStorage
   Object.entries(data).forEach(([k, v]) => { if (v !== null) lsSet(k, v) })
-  // overwrite shared file if connected
-  if (fs.isConnected()) await fs.setAll(data)
+  if (ss.isConnected())      await ss.setAll(data)
+  else if (fs.isConnected()) await fs.setAll(data)
 }
