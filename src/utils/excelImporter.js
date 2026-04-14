@@ -1,5 +1,5 @@
-// Excel file parser for importing Products and Expiry Rules
-// Supports .xlsx files using built-in browser APIs via SheetJS library fallback
+// Excel file parser — SheetJS bundled directly (no CDN needed, works offline)
+import * as XLSX from 'xlsx'
 
 // Parse Excel file and extract sheets
 export async function parseExcelFile(file) {
@@ -7,51 +7,19 @@ export async function parseExcelFile(file) {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
-        // Use dynamic import or fallback
-        importExcelLib()
-          .then(XLSX => {
-            const data = new Uint8Array(e.target.result)
-            const workbook = XLSX.read(data, { type: 'array' })
-            const sheets = {}
-            workbook.SheetNames.forEach(name => {
-              sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name])
-            })
-            resolve(sheets)
-          })
-          .catch(err => {
-            // Fallback: manual parsing
-            console.warn('SheetJS not available, attempting basic parsing', err)
-            reject(new Error('Excel parsing library not available. Please install SheetJS or use CSV format.'))
-          })
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheets = {}
+        workbook.SheetNames.forEach(name => {
+          sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name])
+        })
+        resolve(sheets)
       } catch (err) {
         reject(err)
       }
     }
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsArrayBuffer(file)
-  })
-}
-
-// Dynamic import of SheetJS
-function importExcelLib() {
-  // Check if XLSX is already loaded globally
-  if (typeof window !== 'undefined' && window.XLSX) {
-    return Promise.resolve(window.XLSX)
-  }
-
-  // Try to load from CDN
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js'
-    script.onload = () => {
-      if (window.XLSX) {
-        resolve(window.XLSX)
-      } else {
-        reject(new Error('XLSX library failed to load'))
-      }
-    }
-    script.onerror = reject
-    document.head.appendChild(script)
   })
 }
 
