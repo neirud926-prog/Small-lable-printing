@@ -3,7 +3,7 @@
   body > *:not(iframe) { display: none !important; }
 
   @page {
-    size: 25mm 70mm;
+    size: 34.4mm 25mm;
     margin: 0;
   }
 }

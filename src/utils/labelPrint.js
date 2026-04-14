@@ -1,10 +1,10 @@
 // Label printing via hidden iframe → window.print()
-// Thermal label: ~25mm wide × 70mm tall (small label)
+// Label size: 34.4mm × 25mm (landscape)
 
 export function printLabel(labelHTML, copies = 1) {
   for (let i = 0; i < copies; i++) {
     const iframe = document.createElement('iframe')
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:25mm;height:70mm;border:none;'
+    iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:34.4mm;height:25mm;border:none;'
     document.body.appendChild(iframe)
 
     const doc = iframe.contentDocument || iframe.contentWindow.document
@@ -15,27 +15,32 @@ export function printLabel(labelHTML, copies = 1) {
 <meta charset="UTF-8">
 <style>
   @page {
-    size: 25mm 70mm;
+    size: 34.4mm 25mm;
     margin: 0;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    width: 25mm;
-    height: 70mm;
+    width: 34.4mm;
+    height: 25mm;
     font-family: Arial, sans-serif;
     overflow: hidden;
     display: flex;
-    flex-direction: column;
-    padding: 1mm;
+    flex-direction: row;
   }
-  .label-drug {
-    font-size: 8pt;
-    font-weight: bold;
-    text-align: center;
-    flex: 1;
+  /* Left column: drug name */
+  .label-drug-col {
+    flex: 0 0 56%;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    padding: 1.5mm;
+    border-right: 0.3mm solid #000;
+  }
+  .label-drug {
+    font-size: 9pt;
+    font-weight: bold;
+    text-align: center;
     word-break: break-word;
     line-height: 1.2;
   }
@@ -43,18 +48,39 @@ export function printLabel(labelHTML, copies = 1) {
   .label-drug.black-bg {
     background: black;
     color: white;
+    padding: 1mm;
     border-radius: 1mm;
   }
   .label-exp {
-    font-size: 7pt;
-    padding-top: 1mm;
+    font-size: 5.5pt;
+    text-align: center;
+    margin-top: 1mm;
+    width: 100%;
   }
-  .label-batch {
-    font-size: 7pt;
-    padding-top: 0.5mm;
+  /* Right column: form fields */
+  .label-fields-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    padding: 1mm 1.5mm;
+  }
+  .label-field {
+    font-size: 5.5pt;
+    font-weight: bold;
+    line-height: 1;
+  }
+  .label-field-line {
+    display: block;
+    border-bottom: 0.25mm solid #000;
+    width: 100%;
+    margin-top: 0.8mm;
+    min-height: 2.5mm;
+    font-weight: normal;
+    font-size: 5.5pt;
   }
   @media print {
-    html, body { width: 25mm; height: 70mm; }
+    html, body { width: 34.4mm; height: 25mm; }
   }
 </style>
 </head>
@@ -74,41 +100,34 @@ ${labelHTML}
   }
 }
 
-// Build small label HTML (IP or OP)
+// Build small label HTML — landscape 34.4mm × 25mm
+// Layout: drug name (left col) | Bat.No. / Packed by / Checked by (right col)
 export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode) {
   const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const isPHEN18 = itemCode && itemCode.toUpperCase() === 'PHEN18'
-  const blackBg = isAUGM06
-  const smallFont = isPHEN18
 
   const drugClass = [
     'label-drug',
-    blackBg ? 'black-bg' : '',
-    smallFont ? 'small-font' : '',
+    isAUGM06 ? 'black-bg' : '',
+    isPHEN18 ? 'small-font' : '',
   ].filter(Boolean).join(' ')
 
-  if (ipop === 'OP') {
-    const batLine = lot && lot !== 'na----'
-      ? `Bat. No.: ${lot}`
-      : 'Bat. No.: ______________'
-    return `
+  const batValue = lot && lot !== 'na----' ? lot : ''
+  const expRow = ipop === 'IP' && exp && exp !== 'na----'
+    ? `<div class="label-exp">Exp: ${exp}</div>`
+    : ''
+
+  return `
+    <div class="label-drug-col">
       <div class="${drugClass}">${drugName}</div>
-      <div class="label-batch">${batLine}</div>
-    `
-  } else {
-    // IP label
-    const expLine = exp && exp !== 'na----'
-      ? `Use before: ${exp}`
-      : 'Use before: ____________'
-    const batLine = lot && lot !== 'na----'
-      ? `Bat. No.: ${lot}`
-      : 'Bat. No.: ______________'
-    return `
-      <div class="${drugClass}">${drugName}</div>
-      <div class="label-exp">${expLine}</div>
-      <div class="label-batch">${batLine}</div>
-    `
-  }
+      ${expRow}
+    </div>
+    <div class="label-fields-col">
+      <div class="label-field">Bat. No.:<span class="label-field-line">${batValue}</span></div>
+      <div class="label-field">Packed by:<span class="label-field-line"></span></div>
+      <div class="label-field">Checked by:<span class="label-field-line"></span></div>
+    </div>
+  `
 }
 
 // Build ABX/OPLabel (3-column layout matching OPLabel sheet)
