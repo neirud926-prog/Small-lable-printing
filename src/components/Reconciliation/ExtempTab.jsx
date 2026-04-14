@@ -42,8 +42,8 @@ export default function ExtempTab() {
     if (!expiry)   { setError('No expiry rule found — add one in Maintenance.'); return }
 
     const copies = Math.ceil((parseInt(factor) + 2) / 2)
-    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '')
-    printLabel(html, copies)
+    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings)
+    printLabel(html, copies, settings)
 
     addBatchRecord({
       date: new Date().toLocaleDateString('en-CA'),

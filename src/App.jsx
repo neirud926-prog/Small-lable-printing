@@ -6,7 +6,7 @@ import Reconciliation from './components/Reconciliation/index'
 import Maintenance from './components/Maintenance/index'
 import Settings from './components/Settings'
 import FileConnect from './components/FileConnect'
-import { tryRestore, onRemoteChange }                        from './utils/fileStorage'
+import { tryRestore, onRemoteChange, hasStoredHandle, pickExisting } from './utils/fileStorage'
 import { tryRestore as tryServerRestore, tryConnect as tryServerConnect,
          onRemoteChange as onServerRemoteChange }             from './utils/serverStorage'
 
@@ -21,6 +21,7 @@ export default function App() {
   const [connected,   setConnected]   = useState(false)
   const [loading,     setLoading]     = useState(true)    // while tryRestore() runs
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
+  const [needReconnect, setNeedReconnect] = useState(false) // had file, lost permission
 
   // On mount: auto-connect using the best available storage
   useEffect(() => {
@@ -37,7 +38,10 @@ export default function App() {
       // 3. Try previously-picked shared file (File System Access API)
       if (await tryRestore()) { setConnected(true); setLoading(false); return }
 
-      // 4. Nothing found — show the connect screen
+      // 4. Had a file before but lost permission — show minimal reconnect prompt
+      if (hasStoredHandle()) { setNeedReconnect(true); setLoading(false); return }
+
+      // 5. Nothing found — show the connect screen
       setLoading(false)
     }
     init()
@@ -62,6 +66,57 @@ export default function App() {
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
           Connecting to data file…
         </div>
+      </div>
+    )
+  }
+
+  // ── Minimal reconnect prompt (had file, lost permission) ─────────────────
+  if (needReconnect) {
+    const storedName = localStorage.getItem('sml_connectedFileName') || 'your data file'
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center',
+        justifyContent: 'center', background: 'var(--bg)', padding: 24,
+      }}>
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ maxWidth: 400, width: '100%', textAlign: 'center' }}
+        >
+          <div style={{ fontSize: 44, marginBottom: 12 }}>🔐</div>
+          <div style={{ fontWeight: 700, fontSize: 18, marginBottom: 8 }}>Permission Required</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
+            Chrome needs permission to access your data file:<br />
+            <strong style={{ color: 'var(--text)' }}>{storedName}</strong><br />
+            Click below to grant access — this takes one click.
+          </div>
+          <button
+            className="btn btn-primary"
+            style={{ fontSize: 15, padding: '12px 32px', marginBottom: 12 }}
+            onClick={async () => {
+              try {
+                await pickExisting()
+                setNeedReconnect(false)
+                setConnected(true)
+              } catch (e) {
+                if (e.name !== 'AbortError') {
+                  setNeedReconnect(false)
+                }
+              }
+            }}
+          >
+            📂 Reconnect to File
+          </button>
+          <div style={{ marginTop: 8 }}>
+            <button
+              className="btn btn-ghost btn-sm"
+              style={{ color: 'var(--text-muted)', fontSize: 12 }}
+              onClick={() => { setNeedReconnect(false) }}
+            >
+              Use local storage only
+            </button>
+          </div>
+        </motion.div>
       </div>
     )
   }

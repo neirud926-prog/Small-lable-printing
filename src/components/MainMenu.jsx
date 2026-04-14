@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
-import { motion } from 'framer-motion'
-import { getDrugs } from '../utils/storage'
+import { motion, AnimatePresence } from 'framer-motion'
+import { getDrugs, getItemLocation } from '../utils/storage'
 import { getSettings } from '../utils/storage'
 
 const NAV_CARDS = [
@@ -41,22 +41,53 @@ const cardVariants = {
 }
 
 export default function MainMenu({ navigate }) {
-  const [enquiry, setEnquiry] = useState('')
-  const [results, setResults] = useState([])
+  const [enquiry, setEnquiry]   = useState('')
+  const [results, setResults]   = useState([])
+  const [selected, setSelected] = useState(null)
   const settings = getSettings()
+
+  const showSuggestions = (drugs, q) => {
+    const up = q.toUpperCase()
+    const found = drugs.filter(
+      d => d.itemCode.toUpperCase().startsWith(up) || d.name.toUpperCase().includes(up)
+    ).slice(0, 10)
+    setResults(found)
+  }
 
   const handleEnquiry = (val) => {
     setEnquiry(val)
-    if (val.length >= 4) {
-      const drugs = getDrugs()
-      const q = val.toUpperCase()
-      const found = drugs.filter(
-        d => d.itemCode.toUpperCase().includes(q) || d.name.toUpperCase().includes(q)
-      ).slice(0, 10)
-      setResults(found)
+    setSelected(null)
+    const v = val.trim()
+    if (v.length === 0) {
+      setResults([])
+      return
+    }
+    const drugs = getDrugs()
+    if (v.length === 6) {
+      const exact = drugs.find(d => d.itemCode.toUpperCase() === v.toUpperCase())
+      if (exact) {
+        setSelected(exact)
+        setResults([])
+        return
+      }
+    }
+    if (v.length >= 4) {
+      showSuggestions(drugs, v)
     } else {
       setResults([])
     }
+  }
+
+  const selectDrug = (drug) => {
+    setSelected(drug)
+    setResults([])
+    setEnquiry(drug.itemCode)
+  }
+
+  const clearEnquiry = () => {
+    setEnquiry('')
+    setResults([])
+    setSelected(null)
   }
 
   return (
@@ -81,25 +112,102 @@ export default function MainMenu({ navigate }) {
         {/* Drug Enquiry */}
         <div className="card mb-12">
           <div className="form-label mb-8">🔍 Drug Enquiry</div>
-          <input
-            className="form-input"
-            placeholder="Enter item code or drug name (min 4 chars)…"
-            value={enquiry}
-            onChange={e => handleEnquiry(e.target.value)}
-            autoComplete="off"
-          />
-          {results.length > 0 && (
-            <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-              {results.map(d => (
-                <div key={d.id || d.itemCode} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-                  <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{d.itemCode}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 13, flex: 1, textAlign: 'left', marginLeft: 16 }}>{d.name}</span>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{d.unit}</span>
+          <div style={{ position: 'relative' }}>
+            <input
+              className="form-input"
+              placeholder="Enter item code or drug name (min 4 chars)…"
+              value={enquiry}
+              onChange={e => handleEnquiry(e.target.value)}
+              autoComplete="off"
+              style={{ paddingRight: enquiry ? 36 : undefined }}
+            />
+            {enquiry && (
+              <button
+                onClick={clearEnquiry}
+                style={{
+                  position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: 'var(--text-muted)', fontSize: 16, lineHeight: 1,
+                }}
+                title="Clear"
+              >×</button>
+            )}
+          </div>
+
+          {/* Suggestions */}
+          <AnimatePresence>
+            {results.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
+              >
+                {results.map(d => {
+                  const loc = getItemLocation(d.itemCode)
+                  return (
+                    <div
+                      key={d.id || d.itemCode}
+                      onClick={() => selectDrug(d)}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '9px 12px', borderBottom: '1px solid var(--border)',
+                        background: 'var(--surface)', cursor: 'pointer', gap: 8,
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}
+                    >
+                      <span style={{ fontWeight: 600, fontFamily: 'monospace', flexShrink: 0 }}>{d.itemCode}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 13, flex: 1, marginLeft: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                      {loc && <span style={{ fontSize: 11, color: 'var(--primary)', background: '#e8f0fe', padding: '2px 7px', borderRadius: 99, flexShrink: 0 }}>📍 {loc}</span>}
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12, flexShrink: 0 }}>{d.unit}</span>
+                    </div>
+                  )
+                })}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Detail card for selected drug */}
+          <AnimatePresence>
+            {selected && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                style={{
+                  marginTop: 10, padding: '14px 16px',
+                  border: '1.5px solid var(--primary)', borderRadius: 'var(--radius)',
+                  background: '#f0f6ff',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 16, color: 'var(--primary)' }}>{selected.itemCode}</div>
+                    <div style={{ fontWeight: 600, fontSize: 15, marginTop: 2 }}>{selected.name}</div>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {selected.unit && (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Unit: <strong>{selected.unit}</strong></span>
+                      )}
+                      {(() => {
+                        const loc = getItemLocation(selected.itemCode)
+                        return loc ? (
+                          <span style={{ fontSize: 12, background: '#e8f0fe', color: 'var(--primary)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+                            📍 {loc}
+                          </span>
+                        ) : null
+                      })()}
+                      {selected.isSpecial && (
+                        <span className="badge badge-warning">⚠ Special</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-          {enquiry.length >= 4 && results.length === 0 && (
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {enquiry.length >= 4 && results.length === 0 && !selected && (
             <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 8 }}>No drugs found matching "{enquiry}"</div>
           )}
         </div>

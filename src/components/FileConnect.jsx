@@ -95,9 +95,16 @@ export default function FileConnect({ onConnected }) {
             <span style={{ fontSize: 18 }}>📂</span>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Open Shared Data File</div>
           </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12, lineHeight: 1.5 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8, lineHeight: 1.5 }}>
             Pick a <code style={{ fontSize: 12 }}>small-label-data.json</code> on a network drive.
-            All PCs must point to the same file. Chrome may ask for permission each session.
+            All PCs must point to the same file.
+          </div>
+          <div style={{
+            background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 6,
+            padding: '7px 10px', fontSize: 12, color: '#075985', marginBottom: 12, lineHeight: 1.5,
+          }}>
+            ℹ Chrome remembers your file permanently. <strong>You only need to do this once.</strong>{' '}
+            On future visits, the app will reconnect silently — no prompt.
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { decodeBarcode, formatExpiry, isResultValid } from '../utils/barcodeDecoder'
-import { findDrugByCode, getExpAfterOpenDays } from '../utils/storage'
+import { findDrugByCode, getExpAfterOpenDays, getSettings } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
 
@@ -56,6 +56,7 @@ function IPOPModal({ onSelect }) {
 }
 
 export default function SmallLabelPrint({ navigate }) {
+  const settings = getSettings()
   const [tab, setTab] = useState('standard')
   const [input, setInput]           = useState('')
   const [shortExpInput, setShortExpInput] = useState('')
@@ -82,7 +83,10 @@ export default function SmallLabelPrint({ navigate }) {
 
   const resolveLabel = (code, ipopType, lotVal, expVal) => {
     const drug = findDrugByCode(code)
-    if (!drug) { setError(`Item code not found: ${code}`); return }
+    if (!drug) {
+      setError(`Drug not found (${code}). Import your drug list via Maintenance → Import Excel → Drugs (PHQ).`)
+      return
+    }
     setDrugName(drug.name)
     setItemCode(drug.itemCode)
     setIpop(ipopType)
@@ -140,8 +144,8 @@ export default function SmallLabelPrint({ navigate }) {
 
   const handlePrint = () => {
     if (!drugName) return
-    const html = buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode)
-    printLabel(html, 1)
+    const html = buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings)
+    printLabel(html, 1, settings)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 1500)
     clearLabel()

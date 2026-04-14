@@ -140,3 +140,17 @@ export function extractExpAfterOpen(data) {
       days: parseInt(row.days || row['Days'] || 0, 10) || '',
     }))
 }
+
+// Extract item locations from sheet data
+// Expected columns: itemCode (or "Item Code") and location (or "Location" / "Bin Location")
+export function extractLocations(data) {
+  return data
+    .filter(row => {
+      const code = row.itemCode || row['Item Code'] || row['ITEM CODE']
+      return code && code.toString().trim()
+    })
+    .map(row => ({
+      itemCode: (row.itemCode || row['Item Code'] || row['ITEM CODE'] || '').toString().trim().toUpperCase(),
+      location: (row.location || row['Location'] || row['LOCATION'] || row['Bin Location'] || row['BIN LOCATION'] || '').toString().trim(),
+    }))
+}

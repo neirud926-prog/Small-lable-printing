@@ -61,8 +61,9 @@ let _pollTimer    = null
 let _onRemoteChange = null  // () => void  — called when another PC changed the file
 
 export function isConnected()       { return _connected }
-export function getFileName()       { return _handle?.name ?? '' }
+export function getFileName()       { return _handle?.name ?? localStorage.getItem('sml_connectedFileName') ?? '' }
 export function onRemoteChange(cb)  { _onRemoteChange = cb }
+export function hasStoredHandle()   { return !!localStorage.getItem('sml_connectedFileName') }
 
 // ── Permission helper ─────────────────────────────────────────────────────────
 async function ensurePermission(handle) {
@@ -98,6 +99,9 @@ async function _connect(handle) {
   _lastContent = content
   _handle      = handle
   _connected   = true
+
+  // Persist filename so UI can show it even before IndexedDB resolves
+  try { localStorage.setItem('sml_connectedFileName', handle.name) } catch { /* ignore */ }
 
   _startPoll()
 }
@@ -141,6 +145,7 @@ export async function disconnect() {
   _cache     = null
   _connected = false
   _stopPoll()
+  try { localStorage.removeItem('sml_connectedFileName') } catch { /* ignore */ }
   await idbDel(IDB_KEY)
 }
 
