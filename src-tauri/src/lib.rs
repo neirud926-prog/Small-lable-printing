@@ -162,15 +162,25 @@ $pd.add_PrintPage({
     $y += $batchH
 
     # ── Footer: Packed by / Checked by ────────────────────────────────────────
-    $sfont  = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.signFontSize, [System.Drawing.FontStyle]::Bold)
-    $halfW  = ($w - $pl - $pr) / 2.0
-    $fLineY = $y + [double]$d.signFontSize * 0.45 + 1.8
+    $sfont = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.signFontSize, [System.Drawing.FontStyle]::Bold)
+    $halfW = ($w - $pl - $pr) / 2.0
+
+    # Place the underline right at the text baseline.
+    # 1 pt = 25.4/72 mm ≈ 0.353 mm; baseline ≈ 80 % of character height from top.
+    $charH  = [double]$d.signFontSize * 0.353
+    $fLineY = $y + $charH * 0.85
+
+    # Measure actual rendered text widths so each line starts immediately
+    # after its label (no hardcoded offsets that break at other font sizes).
+    $psz = $g.MeasureString("Packed by:",  $sfont)
+    $csz = $g.MeasureString("Checked by:", $sfont)
 
     $g.DrawString("Packed by:",  $sfont, $blk, $pl, $y)
-    $g.DrawLine($pen, ($pl + 11.0), $fLineY, ($pl + $halfW - 1.0), $fLineY)
+    $g.DrawLine($pen, ($pl + $psz.Width), $fLineY, ($pl + $halfW - 0.5), $fLineY)
 
-    $g.DrawString("Checked by:", $sfont, $blk, ($pl + $halfW + 1.0), $y)
-    $g.DrawLine($pen, ($pl + $halfW + 13.5), $fLineY, ($w - $pr), $fLineY)
+    $rx = $pl + $halfW + 1.0
+    $g.DrawString("Checked by:", $sfont, $blk, $rx, $y)
+    $g.DrawLine($pen, ($rx + $csz.Width), $fLineY, ($w - $pr), $fLineY)
 
     $e.HasMorePages = $false
 })
