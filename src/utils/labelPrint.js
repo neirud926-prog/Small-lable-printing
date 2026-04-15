@@ -44,15 +44,15 @@ function buildPageCSS(settings = {}) {
     font-size: ${Math.max(sfs - 0.5, 4)}pt;
     text-align: left;
     padding-bottom: 0.5mm;
+    font-weight: bold;
   }
   .label-bat {
-    display: flex; align-items: baseline;
+    display: flex; align-items: flex-end;
     font-size: ${bfs}pt; font-weight: bold; margin-top: 1.2mm;
   }
   .label-bat-line {
     flex: 1; border-bottom: 0.25mm solid #000; margin-left: 0.8mm;
-    height: 3mm; font-weight: normal; font-size: ${bfs}pt;
-    line-height: 2.8mm; padding-left: 0.5mm;
+    font-weight: normal; font-size: ${bfs}pt; padding-left: 0.5mm;
   }
   .label-footer {
     display: flex; gap: 2mm; margin-top: 1mm;

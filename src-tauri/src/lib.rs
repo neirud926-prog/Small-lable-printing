@@ -146,7 +146,7 @@ $pd.add_PrintPage({
 
     # ── Expiry (IP labels only) ────────────────────────────────────────────────
     if ($hasExp) {
-        $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [Math]::Max([double]$d.signFontSize - 0.5, 4))
+        $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [Math]::Max([double]$d.signFontSize - 0.5, 4), [System.Drawing.FontStyle]::Bold)
         $g.DrawString("Exp: $([string]$d.expiry)", $ef, $blk, $pl, $y)
         $y += $expH
     }
@@ -154,10 +154,12 @@ $pd.add_PrintPage({
     # ── Batch No ───────────────────────────────────────────────────────────────
     $bfBold   = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize, [System.Drawing.FontStyle]::Bold)
     $bfNormal = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize)
-    $g.DrawString("Bat. No.:", $bfBold,   $blk, $pl,  ($y + 0.4))
-    $batX = $pl + 13.0
+    $bSz    = $g.MeasureString("Bat. No.:", $bfBold)
+    $batX   = $pl + $bSz.Width
+    $charHB = [double]$d.batchFontSize * 0.353
+    $lineY  = $y + 0.4 + $charHB * 0.85
+    $g.DrawString("Bat. No.:", $bfBold,   $blk, $pl,   ($y + 0.4))
     $g.DrawString([string]$d.batchNo, $bfNormal, $blk, $batX, ($y + 0.4))
-    $lineY = $y + [double]$d.batchFontSize * 0.45 + 1.8
     $g.DrawLine($pen, $batX, $lineY, ($w - $pr), $lineY)
     $y += $batchH
 

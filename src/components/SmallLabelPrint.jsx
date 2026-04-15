@@ -1,9 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { decodeBarcode, formatExpiry, isResultValid } from '../utils/barcodeDecoder'
-import { findDrugByCode, getExpAfterOpenDays, getSettings } from '../utils/storage'
+import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+// Convert user-typed expiry to DD-Mon-YYYY.
+// Accepts:  DDMMYYYY (8 digits)  →  "01-Jan-2028"
+//           DD-MMM-YYYY / DD-Mon-YYYY  →  normalise to title-case month
+//           anything else  →  pass through unchanged
+function parseUserExpiry(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 8) {
+    const dd  = digits.substring(0, 2)
+    const mm  = parseInt(digits.substring(2, 4), 10)
+    const yyyy = digits.substring(4, 8)
+    if (mm >= 1 && mm <= 12) return `${dd}-${MONTHS[mm - 1]}-${yyyy}`
+  }
+  const m = raw.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/)
+  if (m) {
+    const mon = m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase()
+    return `${m[1]}-${mon}-${m[3]}`
+  }
+  return raw
+}
 
 function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
   if (!drugName) return null
@@ -156,8 +178,9 @@ export default function SmallLabelPrint({ navigate }) {
     if (!pendingBarcode) return
     const { decoded } = pendingBarcode
     const [gtin, lotVal, expRaw] = decoded
-    // Use GTIN as item code ref, but try to find drug by last 6 chars of GTIN
-    const code = gtin ? gtin.substring(8, 14) : ''
+    // Look up item code from GTIN map first; fall back to substring extraction
+    const mappedCode = gtin ? findByGtin(gtin) : null
+    const code = mappedCode || (gtin ? gtin.substring(8, 14) : '')
     const expFormatted = expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
     resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
     setPendingBarcode(null)
@@ -297,10 +320,10 @@ export default function SmallLabelPrint({ navigate }) {
                           </label>
                           <input
                             className="form-input"
-                            style={{ width: 150, fontSize: 13 }}
-                            placeholder="e.g. 31-DEC-2026"
+                            style={{ width: 160, fontSize: 13 }}
+                            placeholder="e.g. 01012028 or 01-Jan-2028"
                             value={exp}
-                            onChange={e => setExp(e.target.value)}
+                            onChange={e => setExp(parseUserExpiry(e.target.value))}
                           />
                         </div>
                       )}

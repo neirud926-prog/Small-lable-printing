@@ -7,6 +7,7 @@ import BatchHistory from './BatchHistory'
 import CancelBatch from './CancelBatch'
 import ExcelImporter from './ExcelImporter'
 import ExpAfterOpen from './ExpAfterOpen'
+import GtinViewer from './GtinViewer'
 
 export default function Maintenance({ navigate }) {
   const [unlocked, setUnlocked] = useState(false)
@@ -81,6 +82,7 @@ export default function Maintenance({ navigate }) {
             <button className={`tab-btn ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>📋 Batch History</button>
             <button className={`tab-btn ${tab === 'cancel' ? 'active' : ''}`} onClick={() => setTab('cancel')}>❌ Cancel Batch</button>
             <button className={`tab-btn ${tab === 'expopen' ? 'active' : ''}`} onClick={() => setTab('expopen')}>⏱ Exp After Open</button>
+            <button className={`tab-btn ${tab === 'gtin' ? 'active' : ''}`} onClick={() => setTab('gtin')}>🔢 GTIN</button>
           </div>
 
           <AnimatePresence mode="wait">
@@ -96,6 +98,7 @@ export default function Maintenance({ navigate }) {
               {tab === 'history'  && <BatchHistory />}
               {tab === 'cancel'   && <CancelBatch />}
               {tab === 'expopen'  && <ExpAfterOpen navigate={navigate} />}
+              {tab === 'gtin'     && <GtinViewer />}
             </motion.div>
           </AnimatePresence>
         </div>
