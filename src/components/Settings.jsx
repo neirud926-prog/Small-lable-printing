@@ -396,7 +396,7 @@ export default function Settings({ navigate }) {
           </label>
 
           <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-            Default: 34.4 × 25 mm · Arial · Drug 8.5pt bold · Batch 6pt · Sign 5.5pt
+            Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · No padding
           </div>
         </div>
 
