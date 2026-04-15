@@ -179,7 +179,11 @@ export function findByGtin(gtin)  { return getGtinMap()[gtin.trim()] || null }
 
 // ── DATA SOURCE PATHS ─────────────────────────────────────────────────────────
 export function getDataPaths() {
-  return load(KEYS.DATA_PATHS, { phq: '', location: '', gtin: '' })
+  return load(KEYS.DATA_PATHS, {
+    phq:      '',
+    location: '\\\\nltpha-nas01\\PharmShare\\Programme Data\\ItemLocationXls.xls',
+    gtin:     '\\\\nltpha-nas01\\PharmShare\\Programme Data\\Database\\Replenishment.accdb',
+  })
 }
 export function saveDataPaths(paths) {
   save(KEYS.DATA_PATHS, { ...getDataPaths(), ...paths })
