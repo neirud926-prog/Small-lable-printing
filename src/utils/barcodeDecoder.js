@@ -214,7 +214,7 @@ export function decodeBarcode(barcode) {
   return null
 }
 
-// Format exp YYMMDD → DD-MMM-YYYY
+// Format exp YYMMDD → DD-Mon-YYYY  (e.g. "01-Jan-2028")
 export function formatExpiry(exp) {
   if (!exp || exp === 'na----') return ''
   const yy = exp.substring(0, 2)
@@ -222,5 +222,7 @@ export function formatExpiry(exp) {
   const dd = exp.substring(4, 6)
   const year = parseInt(yy) + 2000
   const date = new Date(year, parseInt(mm) - 1, parseInt(dd))
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()
+  const parts = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).split(' ')
+  // parts = ['01', 'Jan', '2028'] — already title-case from en-GB locale
+  return `${parts[0]}-${parts[1]}-${parts[2]}`
 }
