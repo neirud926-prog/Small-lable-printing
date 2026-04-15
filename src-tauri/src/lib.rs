@@ -4,8 +4,7 @@ use tauri::command;
 
 // ── Print serialization lock ───────────────────────────────────────────────────
 // Ensures that concurrent label prints never interleave their printer-switch
-// operations.  One job runs to completion (printer set → Edge prints → printer
-// restored) before the next one begins.
+// operations.  One job runs to completion before the next one begins.
 static PRINT_LOCK: Mutex<()> = Mutex::new(());
 
 // ── PowerShell helpers ────────────────────────────────────────────────────────
@@ -34,7 +33,6 @@ fn get_default_printer() -> String {
 }
 
 /// Set the Windows default printer by name.
-/// Returns `Err` with a human-readable message if the printer cannot be found.
 fn set_default_printer(name: &str) -> Result<(), String> {
     let escaped = name.replace('\'', "''");
     let script = format!(
@@ -48,18 +46,144 @@ $p.SetDefaultPrinter() | Out-Null
     let out = ps_run(&script).map_err(|e| format!("PowerShell error: {}", e))?;
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        return Err(format!(
-            "Cannot select printer '{}': {}",
-            name,
-            err.trim()
-        ));
+        return Err(format!("Cannot select printer '{}': {}", name, err.trim()));
     }
     Ok(())
 }
 
+/// Find the first Chromium-based browser installed that supports --kiosk-printing.
+/// Returns the full path, or None if none are found.
+fn find_kiosk_browser() -> Option<String> {
+    // Fixed installation paths (most common)
+    let fixed: &[&str] = &[
+        // Microsoft Edge
+        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        // Google Chrome (machine-wide)
+        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        // Brave
+        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+    ];
+
+    // Per-user Chrome / Edge installation under %LOCALAPPDATA%
+    let user_paths: Vec<String> = std::env::var("LOCALAPPDATA")
+        .map(|base| {
+            vec![
+                format!(r"{}\Google\Chrome\Application\chrome.exe", base),
+                format!(r"{}\Microsoft\Edge\Application\msedge.exe", base),
+            ]
+        })
+        .unwrap_or_default();
+
+    fixed
+        .iter()
+        .map(|s| s.to_string())
+        .chain(user_paths)
+        .find(|p| std::path::Path::new(p).exists())
+}
+
+// ── PowerShell / System.Drawing print script ─────────────────────────────────
+
+/// Build the PowerShell script that renders a small label using System.Drawing
+/// and sends it directly to the named printer — no browser required.
+/// `data_file` must be a forward-slash path to the JSON data file.
+fn build_ps_print_script(data_file: &str) -> String {
+    // Use simple string replacement so we never have to escape curly braces
+    // in a Rust format! call against PowerShell syntax.
+    let template = r#"
+Add-Type -AssemblyName System.Drawing
+
+$script:d = Get-Content 'DATA_FILE' -Raw | ConvertFrom-Json
+
+$pd = New-Object System.Drawing.Printing.PrintDocument
+$pd.PrinterSettings.PrinterName = $script:d.printerName
+if (-not $pd.PrinterSettings.IsValid) {
+    throw "Printer '$($script:d.printerName)' not found or inaccessible. Check Settings -> Thermal Printer."
+}
+
+$pd.add_PrintPage({
+    param($sender, $e)
+    $g  = $e.Graphics
+    $g.PageUnit = [System.Drawing.GraphicsUnit]::Millimeter
+    $d  = $script:d
+
+    $blk = [System.Drawing.Brushes]::Black
+    $wht = [System.Drawing.Brushes]::White
+    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 0.25)
+
+    $pl = 2.2; $pr = 2.2; $pt = 1.8; $pb = 1.4
+    $w  = [double]$d.widthMm
+    $h  = [double]$d.heightMm
+
+    $hasExp  = ($d.ipop -eq 'IP') -and ([string]$d.expiry -ne '') -and ([string]$d.expiry -ne 'na----')
+    $footerH = 4.8
+    $batchH  = 4.5
+    $expH    = if ($hasExp) { 3.2 } else { 0 }
+    $drugH   = $h - $pt - $pb - $footerH - $batchH - $expH
+
+    # ── Drug name ──────────────────────────────────────────────────────────────
+    $dfs = [double]$d.drugFontSize
+    if ([bool]$d.isSmallFont) { $dfs = [Math]::Max($dfs - 1.5, 5) }
+    $dfStyle = if ([bool]$d.drugFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $dfont   = New-Object System.Drawing.Font([string]$d.fontFamily, $dfs, $dfStyle)
+
+    $sf = New-Object System.Drawing.StringFormat
+    $sf.Alignment     = [System.Drawing.StringAlignment]::Center
+    $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
+    $sf.Trimming      = [System.Drawing.StringTrimming]::Word
+
+    $drugRect = [System.Drawing.RectangleF]::new($pl, $pt, ($w - $pl - $pr), $drugH)
+    if ([bool]$d.isBlackBg) {
+        $g.FillRectangle([System.Drawing.Brushes]::Black, $drugRect)
+        $g.DrawString([string]$d.drugName, $dfont, $wht, $drugRect, $sf)
+    } else {
+        $g.DrawString([string]$d.drugName, $dfont, $blk, $drugRect, $sf)
+    }
+
+    $y = $pt + $drugH
+
+    # ── Expiry (IP labels only) ────────────────────────────────────────────────
+    if ($hasExp) {
+        $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [Math]::Max([double]$d.signFontSize - 0.5, 4))
+        $g.DrawString("Exp: $([string]$d.expiry)", $ef, $blk, $pl, $y)
+        $y += $expH
+    }
+
+    # ── Batch No ───────────────────────────────────────────────────────────────
+    $bfBold   = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize, [System.Drawing.FontStyle]::Bold)
+    $bfNormal = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize)
+    $g.DrawString("Bat. No.:", $bfBold,   $blk, $pl,  ($y + 0.4))
+    $batX = $pl + 13.0
+    $g.DrawString([string]$d.batchNo, $bfNormal, $blk, $batX, ($y + 0.4))
+    $lineY = $y + [double]$d.batchFontSize * 0.45 + 1.8
+    $g.DrawLine($pen, $batX, $lineY, ($w - $pr), $lineY)
+    $y += $batchH
+
+    # ── Footer: Packed by / Checked by ────────────────────────────────────────
+    $sfont  = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.signFontSize, [System.Drawing.FontStyle]::Bold)
+    $halfW  = ($w - $pl - $pr) / 2.0
+    $fLineY = $y + [double]$d.signFontSize * 0.45 + 1.8
+
+    $g.DrawString("Packed by:",  $sfont, $blk, $pl, $y)
+    $g.DrawLine($pen, ($pl + 11.0), $fLineY, ($pl + $halfW - 1.0), $fLineY)
+
+    $g.DrawString("Checked by:", $sfont, $blk, ($pl + $halfW + 1.0), $y)
+    $g.DrawLine($pen, ($pl + $halfW + 13.5), $fLineY, ($w - $pr), $fLineY)
+
+    $e.HasMorePages = $false
+})
+
+$pd.Print()
+Write-Host "OK: label sent to $($script:d.printerName)"
+"#;
+    template.replace("DATA_FILE", data_file)
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────────
 
-/// Return the names of all printers installed on this Windows machine.
+/// Return a list of all printer names installed on this Windows machine.
 #[command]
 fn list_printers() -> Result<Vec<String>, String> {
     let out = ps_run(
@@ -77,8 +201,6 @@ fn list_printers() -> Result<Vec<String>, String> {
         return Ok(vec![]);
     }
 
-    // PowerShell emits a bare string when there is only one printer,
-    // or a JSON array when there are multiple.
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).map_err(|e| format!("JSON parse error: {}", e))?;
 
@@ -94,16 +216,93 @@ fn list_printers() -> Result<Vec<String>, String> {
     Ok(names)
 }
 
-/// Print a label HTML string silently via Microsoft Edge in kiosk-printing mode.
+/// Native silent print using PowerShell + System.Drawing — no browser required.
 ///
-/// If `printer_name` is non-empty the function will:
-///   1. Save the current Windows default printer.
-///   2. Set `printer_name` as the new default (fails fast if not found).
-///   3. Launch Edge with `--kiosk-printing` so it prints without a dialog.
-///   4. Wait for Edge to finish (≤ 7 s), then restore the original default.
+/// Renders the label with GDI fonts/lines and sends the job directly to the
+/// named printer.  Works even when browsers are blocked by Group Policy.
+/// Currently handles the "small" label layout (34.4 × 25 mm).
+#[command]
+fn print_label_powershell(
+    drug_name: String,
+    expiry: String,
+    batch_no: String,
+    ipop: String,
+    is_black_bg: bool,
+    is_small_font: bool,
+    printer_name: String,
+    width_mm: f64,
+    height_mm: f64,
+    drug_font_size: f64,
+    batch_font_size: f64,
+    sign_font_size: f64,
+    font_family: String,
+    drug_font_bold: bool,
+) -> Result<(), String> {
+    let _lock = PRINT_LOCK
+        .lock()
+        .map_err(|_| "Print queue error: lock poisoned".to_string())?;
+
+    // Serialise label data to a JSON temp file (avoids any shell-escaping problems)
+    let data = serde_json::json!({
+        "drugName":     drug_name,
+        "expiry":       expiry,
+        "batchNo":      batch_no,
+        "ipop":         ipop,
+        "isBlackBg":    is_black_bg,
+        "isSmallFont":  is_small_font,
+        "printerName":  printer_name,
+        "widthMm":      width_mm,
+        "heightMm":     height_mm,
+        "drugFontSize":   drug_font_size,
+        "batchFontSize":  batch_font_size,
+        "signFontSize":   sign_font_size,
+        "fontFamily":     font_family,
+        "drugFontBold":   drug_font_bold,
+    });
+
+    let temp_dir = std::env::temp_dir();
+    let data_path = temp_dir.join("sml_print_data.json");
+    let script_path = temp_dir.join("sml_print.ps1");
+
+    std::fs::write(&data_path, data.to_string().as_bytes())
+        .map_err(|e| format!("Failed to write print data: {}", e))?;
+
+    // Forward slashes work in PowerShell and avoid backslash escape issues
+    let data_path_fwd = data_path
+        .to_str()
+        .unwrap_or("")
+        .replace('\\', "/");
+
+    let script = build_ps_print_script(&data_path_fwd);
+    std::fs::write(&script_path, script.as_bytes())
+        .map_err(|e| format!("Failed to write print script: {}", e))?;
+
+    let out = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path.to_str().unwrap_or(""),
+        ])
+        .output()
+        .map_err(|e| format!("Failed to launch PowerShell: {}", e))?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("Native print error: {}", detail));
+    }
+
+    Ok(())
+}
+
+/// Print a label HTML string silently via a Chromium browser in kiosk-printing mode.
 ///
-/// A global mutex ensures that concurrent calls never interleave the
-/// printer-switch, so multiple copies print correctly one-at-a-time.
+/// Tries Edge → Chrome → Brave in order.  If `printer_name` is set it is
+/// temporarily made the Windows default so kiosk-mode prints to the right device.
 #[command]
 fn print_label_html(
     html: String,
@@ -112,13 +311,11 @@ fn print_label_html(
     height_mm: f64,
     printer_name: String,
 ) -> Result<(), String> {
-    // Acquire the print lock — released automatically when `_lock` drops at
-    // the end of this function.
     let _lock = PRINT_LOCK
         .lock()
         .map_err(|_| "Print queue error: internal lock was poisoned".to_string())?;
 
-    // ── Build self-contained HTML with auto-print script ──────────────────────
+    // ── Build self-contained HTML ─────────────────────────────────────────────
     let full_html = format!(
         r#"<!DOCTYPE html>
 <html>
@@ -144,7 +341,6 @@ html, body {{ width: {w}mm; height: {h}mm; overflow: hidden; }}
         body = html
     );
 
-    // Write to temp file
     let temp_dir = std::env::temp_dir();
     let html_path = temp_dir.join("sml_label_print.html");
     std::fs::write(&html_path, full_html.as_bytes())
@@ -156,7 +352,6 @@ html, body {{ width: {w}mm; height: {h}mm; overflow: hidden; }}
     );
 
     // ── Printer selection ─────────────────────────────────────────────────────
-    // Save original default so we can restore it after printing.
     let original_printer = if !printer_name.is_empty() {
         let orig = get_default_printer();
         set_default_printer(&printer_name)?;
@@ -165,30 +360,25 @@ html, body {{ width: {w}mm; height: {h}mm; overflow: hidden; }}
         String::new()
     };
 
-    // ── Locate Edge ───────────────────────────────────────────────────────────
-    let edge_candidates = [
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-    ];
-    let edge_path = match edge_candidates
-        .iter()
-        .find(|p| std::path::Path::new(p).exists())
-    {
-        Some(p) => p.to_string(),
+    // ── Find a kiosk-capable browser ─────────────────────────────────────────
+    // Tries Edge → Chrome → Brave.  Error message lists all paths checked so
+    // IT can quickly diagnose which browser to allow in Group Policy.
+    let browser_path = match find_kiosk_browser() {
+        Some(p) => p,
         None => {
-            // Restore printer before returning an error
             if !original_printer.is_empty() {
                 let _ = set_default_printer(&original_printer);
             }
             return Err(
-                "Microsoft Edge not found. Please install Edge to enable silent printing."
+                "No supported browser found (checked Edge, Chrome, Brave). \
+                 Enable 'Silent print (native)' in Settings to print without a browser."
                     .to_string(),
             );
         }
     };
 
-    // ── Spawn Edge ────────────────────────────────────────────────────────────
-    let mut child = match Command::new(&edge_path)
+    // ── Spawn the browser ─────────────────────────────────────────────────────
+    let mut child = match Command::new(&browser_path)
         .args([
             "--kiosk-printing",
             "--no-first-run",
@@ -204,17 +394,21 @@ html, body {{ width: {w}mm; height: {h}mm; overflow: hidden; }}
             if !original_printer.is_empty() {
                 let _ = set_default_printer(&original_printer);
             }
-            return Err(format!("Failed to launch Edge: {}", e));
+            // Give a clear hint if Group Policy is the culprit (error 1260)
+            let hint = if e.raw_os_error() == Some(1260) {
+                " (blocked by Group Policy — use 'Silent print (native)' in Settings instead)"
+            } else {
+                ""
+            };
+            return Err(format!("Failed to launch browser{}: {}", hint, e));
         }
     };
 
-    // ── Wait for Edge to finish (auto-closes after ~2 s via JS) ──────────────
-    // Polling with a 7-second hard deadline keeps the lock held until printing
-    // is truly done, so the next queued copy can safely swap the printer again.
+    // ── Wait for browser to finish ────────────────────────────────────────────
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(7);
     loop {
         match child.try_wait() {
-            Ok(Some(_)) => break, // Edge exited naturally
+            Ok(Some(_)) => break,
             Ok(None) => {}
             Err(_) => break,
         }
@@ -226,7 +420,6 @@ html, body {{ width: {w}mm; height: {h}mm; overflow: hidden; }}
     }
 
     // ── Restore original default printer ──────────────────────────────────────
-    // Best-effort: if this fails the user still got their label printed.
     if !original_printer.is_empty() && original_printer != printer_name {
         let _ = set_default_printer(&original_printer);
     }
@@ -241,10 +434,8 @@ fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
 }
 
 /// Query the GTIN table from a Microsoft Access .accdb file via PowerShell + OleDB.
-/// Returns JSON array of { ItemCode, GTIN } objects as a string.
 #[command]
 fn query_gtin_db(path: String) -> Result<Vec<serde_json::Value>, String> {
-    // Escape single quotes in the path for PowerShell
     let safe_path = path.replace('\'', "''");
 
     let ps_script = format!(
@@ -298,7 +489,6 @@ try {{
         return Ok(vec![]);
     }
 
-    // PowerShell returns either an object (1 row) or array; normalise to array
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).map_err(|e| format!("JSON parse error: {}", e))?;
 
@@ -330,6 +520,7 @@ pub fn run() {
             read_binary_file,
             query_gtin_db,
             print_label_html,
+            print_label_powershell,
             list_printers
         ])
         .run(tauri::generate_context!())

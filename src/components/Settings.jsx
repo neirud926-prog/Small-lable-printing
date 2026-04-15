@@ -287,10 +287,12 @@ export default function Settings({ navigate }) {
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
               <input type="checkbox" checked={!!settings.silentPrint} onChange={e => set('silentPrint', e.target.checked)} />
               <div>
-                <div style={{ fontWeight: 600 }}>Silent print (Tauri — no dialog)</div>
+                <div style={{ fontWeight: 600 }}>Silent print (no dialog)</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  Prints directly to the printer selected above — no dialog shown.
-                  Select your thermal printer from the dropdown, then enable this toggle.
+                  Prints directly to the selected printer using native Windows printing
+                  (PowerShell + System.Drawing) — <strong>no browser required</strong>.
+                  If native printing fails, automatically falls back to Edge / Chrome / Brave
+                  with kiosk mode. Select your thermal printer above, then enable this.
                 </div>
               </div>
             </label>
