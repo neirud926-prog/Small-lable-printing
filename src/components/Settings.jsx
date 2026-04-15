@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getSettings, saveSettings, exportAllData, importAllData,
          getDataPaths, saveDataPaths } from '../utils/storage'
@@ -6,6 +6,7 @@ import { isConnected as isFileConnected, getFileName, disconnect as fileDisconne
 import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
 import { autoLoad } from '../utils/dataLoader'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
 
 const LOCATIONS = ['IP/OP', 'EC', 'SM']
@@ -18,6 +19,15 @@ export default function Settings({ navigate }) {
   const [importMsg, setImportMsg] = useState('')
   const [dataPaths, setDataPaths] = useState(getDataPaths)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [printers, setPrinters]  = useState([])
+
+  // Load available printers from the Tauri backend on first render
+  useEffect(() => {
+    if (!isTauri()) return
+    invoke('list_printers')
+      .then(list => { if (Array.isArray(list)) setPrinters(list) })
+      .catch(() => {}) // non-critical — falls back to text input
+  }, [])
 
   const set = (k, v) => _setSettings(s => ({ ...s, [k]: v }))
 
@@ -229,9 +239,31 @@ export default function Settings({ navigate }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Thermal Printer Name</label>
-            <input className="form-input" value={settings.printerName} onChange={e => set('printerName', e.target.value)}
-              placeholder="e.g. Thermal GX420t - PMS" />
+            <label className="form-label">Thermal Printer</label>
+            {isTauri() && printers.length > 0 ? (
+              <select
+                className="form-select"
+                value={settings.printerName}
+                onChange={e => set('printerName', e.target.value)}
+              >
+                <option value="">— Select a printer —</option>
+                {printers.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="form-input"
+                value={settings.printerName}
+                onChange={e => set('printerName', e.target.value)}
+                placeholder="e.g. Thermal GX420t - PMS"
+              />
+            )}
+            {isTauri() && printers.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                No printers detected — enter the name manually or check that the app has access.
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -257,8 +289,8 @@ export default function Settings({ navigate }) {
               <div>
                 <div style={{ fontWeight: 600 }}>Silent print (Tauri — no dialog)</div>
                 <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  Opens Edge in kiosk mode to print directly to your default printer. Edge must be installed.
-                  Make sure your thermal printer is set as the default Windows printer.
+                  Prints directly to the printer selected above — no dialog shown.
+                  Select your thermal printer from the dropdown, then enable this toggle.
                 </div>
               </div>
             </label>
