@@ -22,6 +22,7 @@ export default function App() {
   const [loading,     setLoading]     = useState(true)    // while tryRestore() runs
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
   const [needReconnect, setNeedReconnect] = useState(false) // had file, lost permission
+  const [printError,  setPrintError]  = useState(null)    // silent print failure message
 
   // On mount: auto-connect using the best available storage
   useEffect(() => {
@@ -53,6 +54,13 @@ export default function App() {
   // Wire up remote-change banner for file-picker mode (Tauri mode has no remote sync).
   useEffect(() => {
     onRemoteChange(() => setRemoteAlert(true))
+  }, [])
+
+  // Listen for silent-print errors dispatched by labelPrint.js
+  useEffect(() => {
+    const handler = (e) => setPrintError(e.detail)
+    window.addEventListener('sml:print-error', handler)
+    return () => window.removeEventListener('sml:print-error', handler)
   }, [])
 
   const navigate = (page) => setView(page)
@@ -142,6 +150,33 @@ export default function App() {
 
   return (
     <div className="app-shell">
+
+      {/* Silent-print error banner */}
+      <AnimatePresence>
+        {printError && (
+          <motion.div
+            initial={{ y: -48, opacity: 0 }}
+            animate={{ y: 0,   opacity: 1 }}
+            exit={{   y: -48, opacity: 0 }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
+              background: '#dc2626', color: '#fff',
+              padding: '10px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontSize: 13, gap: 12,
+            }}
+          >
+            <span>Print error: {printError}</span>
+            <button
+              className="btn btn-sm"
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+              onClick={() => setPrintError(null)}
+            >
+              Dismiss
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Remote-change notification banner */}
       <AnimatePresence>

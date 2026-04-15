@@ -108,10 +108,15 @@ function _enqueueSilent(labelHTML, settings) {
   const w = settings.labelWidth  || 34.4
   const h = settings.labelHeight || 25
   const css = buildPageCSS(settings)
+  const printerName = settings.printerName || ''
 
   _printQueue = _printQueue.then(() =>
-    invoke('print_label_html', { html: labelHTML, css, widthMm: w, heightMm: h })
-      .catch(e => console.error('Silent print failed:', e))
+    invoke('print_label_html', { html: labelHTML, css, widthMm: w, heightMm: h, printerName })
+      .catch(e => {
+        const msg = typeof e === 'string' ? e : (e?.message || 'Print failed. Check printer connection.')
+        console.error('[labelPrint] Silent print error:', msg)
+        window.dispatchEvent(new CustomEvent('sml:print-error', { detail: msg }))
+      })
   )
 }
 
