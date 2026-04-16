@@ -8,12 +8,49 @@ import CancelBatch from './CancelBatch'
 import ExcelImporter from './ExcelImporter'
 import ExpAfterOpen from './ExpAfterOpen'
 import GtinViewer from './GtinViewer'
+import MobileShelfViewer from './MobileShelfViewer'
+import EV54DrugsViewer from './EV54DrugsViewer'
+import EV54AllowlistRule from './EV54AllowlistRule'
+
+const GROUPS = {
+  products: {
+    label: '📦 Products',
+    tabs: [
+      { id: 'products', label: '📦 Products',      Component: ProductManager },
+      { id: 'expiry',   label: '📅 Expiry Rules',  Component: ExpiryRules },
+      { id: 'expopen',  label: '⏱ Exp After Open', Component: ExpAfterOpen },
+    ],
+  },
+  data: {
+    label: '📊 Data',
+    tabs: [
+      { id: 'import',      label: '📥 Import Excel', Component: ExcelImporter },
+      { id: 'mobileshelf', label: '🟢 Mobile Shelf', Component: MobileShelfViewer },
+      { id: 'ev54drugs',   label: '🤖 EV54 Drugs',   Component: EV54DrugsViewer },
+      { id: 'gtin',        label: '🔢 GTIN',         Component: GtinViewer },
+    ],
+  },
+  batches: {
+    label: '📋 Batches',
+    tabs: [
+      { id: 'history', label: '📋 Batch History', Component: BatchHistory },
+      { id: 'cancel',  label: '❌ Cancel Batch',  Component: CancelBatch },
+    ],
+  },
+  rules: {
+    label: '⚙️ Rules',
+    tabs: [
+      { id: 'ev54rule', label: '🤖 EV54 Allowlist', Component: EV54AllowlistRule },
+    ],
+  },
+}
 
 export default function Maintenance({ navigate }) {
   const [unlocked, setUnlocked] = useState(false)
   const [pin, setPin]           = useState('')
   const [pinError, setPinError] = useState(false)
-  const [tab, setTab]           = useState('products')
+  const [group, setGroup]       = useState('products')
+  const [subTab, setSubTab]     = useState(GROUPS.products.tabs[0].id)
 
   const handlePinSubmit = (e) => {
     e.preventDefault()
@@ -26,6 +63,15 @@ export default function Maintenance({ navigate }) {
       setPin('')
     }
   }
+
+  const selectGroup = (g) => {
+    setGroup(g)
+    setSubTab(GROUPS[g].tabs[0].id)
+  }
+
+  const activeTabs = GROUPS[group].tabs
+  const activeTab  = activeTabs.find(t => t.id === subTab) || activeTabs[0]
+  const ActiveComponent = activeTab.Component
 
   return (
     <div className="page">
@@ -75,30 +121,44 @@ export default function Maintenance({ navigate }) {
         </div>
       ) : (
         <div className="page-body">
-          <div className="tabs mb-12">
-            <button className={`tab-btn ${tab === 'products' ? 'active' : ''}`} onClick={() => setTab('products')}>📦 Products</button>
-            <button className={`tab-btn ${tab === 'expiry' ? 'active' : ''}`} onClick={() => setTab('expiry')}>📅 Expiry Rules</button>
-            <button className={`tab-btn ${tab === 'import' ? 'active' : ''}`} onClick={() => setTab('import')}>📊 Import Excel</button>
-            <button className={`tab-btn ${tab === 'history' ? 'active' : ''}`} onClick={() => setTab('history')}>📋 Batch History</button>
-            <button className={`tab-btn ${tab === 'cancel' ? 'active' : ''}`} onClick={() => setTab('cancel')}>❌ Cancel Batch</button>
-            <button className={`tab-btn ${tab === 'expopen' ? 'active' : ''}`} onClick={() => setTab('expopen')}>⏱ Exp After Open</button>
-            <button className={`tab-btn ${tab === 'gtin' ? 'active' : ''}`} onClick={() => setTab('gtin')}>🔢 GTIN</button>
+          {/* Group row */}
+          <div className="tabs" style={{ marginBottom: 6 }}>
+            {Object.entries(GROUPS).map(([gKey, g]) => (
+              <button
+                key={gKey}
+                className={`tab-btn ${group === gKey ? 'active' : ''}`}
+                onClick={() => selectGroup(gKey)}
+                style={{ fontWeight: 700 }}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sub-tab row */}
+          <div className="tabs mb-12" style={{ opacity: 0.95 }}>
+            {activeTabs.map(t => (
+              <button
+                key={t.id}
+                className={`tab-btn ${subTab === t.id ? 'active' : ''}`}
+                onClick={() => setSubTab(t.id)}
+                style={{ fontSize: 13 }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
 
           <AnimatePresence mode="wait">
             <motion.div
-              key={tab}
+              key={`${group}:${subTab}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 0.2 } }}
               exit={{ opacity: 0, transition: { duration: 0.1 } }}
             >
-              {tab === 'products' && <ProductManager />}
-              {tab === 'expiry'   && <ExpiryRules />}
-              {tab === 'import'   && <ExcelImporter />}
-              {tab === 'history'  && <BatchHistory />}
-              {tab === 'cancel'   && <CancelBatch />}
-              {tab === 'expopen'  && <ExpAfterOpen navigate={navigate} />}
-              {tab === 'gtin'     && <GtinViewer />}
+              {activeTab.id === 'expopen'
+                ? <ActiveComponent navigate={navigate} />
+                : <ActiveComponent />}
             </motion.div>
           </AnimatePresence>
         </div>

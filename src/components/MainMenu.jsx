@@ -21,6 +21,14 @@ const NAV_CARDS = [
     bg: '#e6f4ea',
   },
   {
+    id: 'ev54tools',
+    title: 'EV54 Tools',
+    icon: '🤖',
+    desc: 'Pick list generation for EV54 machine refill',
+    color: '#9333ea',
+    bg: '#f3e8ff',
+  },
+  {
     id: 'maintenance',
     title: 'Maintenance',
     icon: '🔧',
@@ -96,7 +104,7 @@ export default function MainMenu({ navigate }) {
       <div className="page-header" style={{ justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: 1 }}>NLTH PHARMACY</div>
-          <h1 style={{ fontSize: 20 }}>Small Label System</h1>
+          <h1 style={{ fontSize: 20 }}>NLTH RxStation</h1>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg)', padding: '4px 10px', borderRadius: 99, border: '1px solid var(--border)' }}>

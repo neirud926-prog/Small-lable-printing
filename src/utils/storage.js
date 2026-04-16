@@ -49,8 +49,10 @@ const KEYS = {
   BATCH_COUNTERS:  'sml_batchCounters',
   SETTINGS:        'sml_settings',
   ITEM_LOCATIONS:  'sml_itemLocations',   // { itemCode → location string }
+  MOBILE_SHELF:    'sml_mobileShelf',     // { itemCode → bin string } (EV54 refill stock)
+  EV54_DRUGS:      'sml_ev54Drugs',       // [{ itemCode, name, evLocator }]
   GTIN_MAP:        'sml_gtinMap',         // { gtin → itemCode }
-  DATA_PATHS:      'sml_dataPaths',       // { phq, location, gtin } file paths
+  DATA_PATHS:      'sml_dataPaths',       // { phq, location, mobileShelf, ev54Drugs, gtin } file paths
 }
 
 // ── DRUGS ─────────────────────────────────────────────────────────────────────
@@ -143,6 +145,24 @@ export function getItemLocation(code)   {
   return getItemLocations()[code.toUpperCase()] || ''
 }
 
+// ── MOBILE SHELF ──────────────────────────────────────────────────────────────
+// Bin assignments on the mobile shelf / wooden cabinet used for EV54 refill.
+// Same shape as ITEM_LOCATIONS: { ITEMCODE: 'bin string' }
+export function getMobileShelf()        { return load(KEYS.MOBILE_SHELF, {}) }
+export function saveMobileShelf(map)    { save(KEYS.MOBILE_SHELF, map) }
+export function getMobileShelfBin(code) {
+  return getMobileShelf()[code.toUpperCase()] || ''
+}
+
+// ── EV54 DRUGS ────────────────────────────────────────────────────────────────
+// Authoritative list of drugs the EV54 machine stocks.
+// Shape: [{ itemCode, name, evLocator }]
+export function getEV54Drugs()      { return load(KEYS.EV54_DRUGS, []) }
+export function saveEV54Drugs(list) { save(KEYS.EV54_DRUGS, list) }
+export function findEV54Drug(code)  {
+  return getEV54Drugs().find(d => d.itemCode.toUpperCase() === code.toUpperCase()) || null
+}
+
 // ── SETTINGS ──────────────────────────────────────────────────────────────────
 export function getSettings() {
   return load(KEYS.SETTINGS, {
@@ -167,6 +187,9 @@ export function getSettings() {
     signFontSize:    5,
     // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
     barcodeMethod:   'gs1',
+    // EV54 pick list: when true, reject codes not in the EV54 Drugs table.
+    // Default false while the EV54 Drugs data is still being prepared.
+    restrictToEV54List: false,
   })
 }
 export function saveSettings(settings) {
@@ -182,9 +205,11 @@ export function findByGtin(gtin)  { return getGtinMap()[gtin.trim()] || null }
 // ── DATA SOURCE PATHS ─────────────────────────────────────────────────────────
 export function getDataPaths() {
   return load(KEYS.DATA_PATHS, {
-    phq:      '',
-    location: '\\\\nltpha-nas01\\PharmShare\\Programme Data\\ItemLocationXls.xls',
-    gtin:     '\\\\nltpha-nas01\\PharmShare\\Programme Data\\Database\\Replenishment.accdb',
+    phq:         '',
+    location:    '\\\\nltpha-nas01\\PharmShare\\Programme Data\\ItemLocationXls.xls',
+    mobileShelf: '',
+    ev54Drugs:   '',
+    gtin:        '\\\\nltpha-nas01\\PharmShare\\Programme Data\\Database\\Replenishment.accdb',
   })
 }
 export function saveDataPaths(paths) {

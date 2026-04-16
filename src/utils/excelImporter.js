@@ -109,6 +109,61 @@ export function extractExpAfterOpen(data) {
     }))
 }
 
+// Mobile Shelf / Wooden Cabinet bin assignments.
+// Same column conventions as extractLocations (Item Code + Bin No.), but stored
+// in a separate table because these bins live on a mobile shelf dedicated to
+// EV54 refill — they take display priority over the general item location.
+export function extractMobileShelf(data) {
+  if (!data || data.length === 0) return []
+
+  const keys    = Object.keys(data[0] || {})
+  const codeKey = keys.find(k => /item.?code/i.test(k)) || keys[0]
+  const binKey  = keys.find(k => /bin|location|loc/i.test(k)) || keys[1]
+
+  return data
+    .map(row => {
+      const itemCode = (
+        row.itemCode || row['Item Code'] || row['ITEM CODE'] ||
+        row['Item_Code'] || row['ItemCode'] || row['ITEMCODE'] ||
+        (codeKey ? row[codeKey] : '') || ''
+      ).toString().trim().toUpperCase()
+
+      const bin = (
+        row['Bin No.']  || row['BIN NO.']  || row['Bin_No'] ||
+        row['Bin']      || row['BIN']      || row['bin'] ||
+        row.location    || row['Location'] || row['LOCATION'] ||
+        row['Bin Location'] || row['BIN LOCATION'] ||
+        row['Loc']      || row['LOC']      || row['loc'] ||
+        (binKey ? row[binKey] : '') || ''
+      ).toString().trim()
+
+      return { itemCode, bin }
+    })
+    .filter(r => r.itemCode && r.bin && r.bin !== '-')
+}
+
+// EV54 Drugs — the authoritative list of drugs the EV54 machine stocks.
+// Flexible header matching: tries to find columns containing
+//   item/code  →  itemCode
+//   desc/name  →  name
+//   ev/locator →  evLocator
+export function extractEV54Drugs(data) {
+  if (!data || data.length === 0) return []
+
+  const keys = Object.keys(data[0] || {})
+  const codeKey    = keys.find(k => /item.?code|^code$/i.test(k)) || keys[0]
+  const nameKey    = keys.find(k => /desc|name/i.test(k))         || keys[1]
+  const locatorKey = keys.find(k => /ev.*locator|locator|ev.*no|position/i.test(k)) || keys[2]
+
+  return data
+    .map(row => ({
+      itemCode:  (codeKey    ? (row[codeKey]    ?? '') : '').toString().trim().toUpperCase(),
+      name:      (nameKey    ? (row[nameKey]    ?? '') : '').toString().trim(),
+      evLocator: (locatorKey ? (row[locatorKey] ?? '') : '').toString().trim(),
+    }))
+    .filter(r => r.itemCode)
+}
+
 // Extract item locations from sheet data.
 // Accepts any of these headers for item code: itemCode / Item Code / ITEM CODE / Item_Code / ItemCode
 // Accepts any of these headers for location: Bin No. / BIN NO. / Bin / BIN / Location / Bin Location / Loc / LOC
