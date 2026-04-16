@@ -123,11 +123,14 @@ function decodeGs1(barcode) {
 
   // 3. Full GS1 AI stream
   const ais = parseGS1AIs(barcode)
-  if (ais && ais['01']) {
-    const gtin = normaliseGtin(ais['01'])
+  // AI 01 = GTIN-14; AI 02 = GTIN of contained trade items (use as fallback)
+  if (ais && (ais['01'] || ais['02'])) {
+    const gtin = normaliseGtin(ais['01'] || ais['02'])
     const lot  = ais['10'] || 'na----'
-    // Prefer expiry (17) → best-before (15) → production date (11)
-    const exp  = ais['17'] || ais['15'] || ais['11'] || 'na----'
+    // AI 17 = expiry date, AI 15 = best-before date.
+    // AI 11 is production date — NOT expiry; ignore for label purposes.
+    // AI 21 = serial number, AI 90 = company internal — both ignored.
+    const exp  = ais['17'] || ais['15'] || 'na----'
     return [gtin, lot, exp]
   }
 
