@@ -1,9 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { decodeBarcode, formatExpiry, isResultValid } from '../utils/barcodeDecoder'
-import { findDrugByCode, getExpAfterOpenDays, getSettings } from '../utils/storage'
+import { decodeBarcode, formatExpiry, isResultValid, normaliseGtin } from '../utils/barcodeDecoder'
+import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+// Convert user-typed expiry to DD-Mon-YYYY.
+// Accepts:  DDMMYYYY (8 digits)  →  "01-Jan-2028"
+//           DD-MMM-YYYY / DD-Mon-YYYY  →  normalise to title-case month
+//           anything else  →  pass through unchanged
+function parseUserExpiry(raw) {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 8) {
+    const dd  = digits.substring(0, 2)
+    const mm  = parseInt(digits.substring(2, 4), 10)
+    const yyyy = digits.substring(4, 8)
+    if (mm >= 1 && mm <= 12) return `${dd}-${MONTHS[mm - 1]}-${yyyy}`
+  }
+  const m = raw.match(/^(\d{2})-([A-Za-z]{3})-(\d{4})$/)
+  if (m) {
+    const mon = m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase()
+    return `${m[1]}-${mon}-${m[3]}`
+  }
+  return raw
+}
 
 function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
   if (!drugName) return null
@@ -81,6 +103,19 @@ export default function SmallLabelPrint({ navigate }) {
     setDrugName(''); setIpop(''); setLot(''); setExp(''); setItemCode(''); setError('')
   }
 
+  const autoPrintLabel = (drug, ipopType, lotVal, expVal) => {
+    const html = buildSmallLabelHTML(drug.name, ipopType, lotVal || '', expVal || '', drug.itemCode, settings)
+    printLabel(html, 1, settings)
+    setSuccess(true)
+    setTimeout(() => setSuccess(false), 1500)
+    // Clear for next scan
+    setTimeout(() => {
+      clearLabel()
+      setInput('')
+      inputRef.current?.focus()
+    }, 400)
+  }
+
   const resolveLabel = (code, ipopType, lotVal, expVal) => {
     const drug = findDrugByCode(code)
     if (!drug) {
@@ -93,6 +128,14 @@ export default function SmallLabelPrint({ navigate }) {
     setLot(lotVal || '')
     setExp(expVal || '')
     setError('')
+
+    // Auto-print when we have everything needed:
+    //   OP → always fine (no exp needed)
+    //   IP → only if exp is present (from barcode). Otherwise show form so user can type it.
+    const hasExp = expVal && expVal !== 'na----'
+    if (ipopType === 'OP' || (ipopType === 'IP' && hasExp)) {
+      autoPrintLabel(drug, ipopType, lotVal, expVal)
+    }
   }
 
   const processInput = (raw) => {
@@ -103,12 +146,11 @@ export default function SmallLabelPrint({ navigate }) {
     if (val.length === 6) {
       // 6-char item code → OP
       resolveLabel(val, 'OP', '', '')
-    } else if (/^\d{8,}/.test(val)) {
-      // Starts with digits → GTIN barcode
-      const decoded = decodeBarcode(val)
+    } else if (/^\d{8,}/.test(val) || /^\](C|d|Q|e)/.test(raw)) {
+      // Starts with digits or has GS1 symbology prefix → GTIN barcode
+      const decoded = decodeBarcode(raw.trim(), settings.barcodeMethod || 'gs1')
       if (!decoded) { setError('Could not decode barcode'); return }
-      // Extract item code: need DB lookup; for now show IP/OP modal
-      setPendingBarcode({ decoded, rawBarcode: val })
+      setPendingBarcode({ decoded, rawBarcode: raw.trim() })
       setShowIPOP(true)
     } else if (val.length === 13) {
       // 13-char IP barcode: extract chars 5-10 for item code
@@ -135,9 +177,13 @@ export default function SmallLabelPrint({ navigate }) {
     if (!pendingBarcode) return
     const { decoded } = pendingBarcode
     const [gtin, lotVal, expRaw] = decoded
-    // Use GTIN as item code ref, but try to find drug by last 6 chars of GTIN
-    const code = gtin ? gtin.substring(8, 14) : ''
-    const expFormatted = expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
+    // Normalise GTIN to 14 digits, then look up in map; fall back to last-6-digits extraction
+    const normGtin = gtin ? normaliseGtin(gtin) : null
+    const mappedCode = normGtin ? findByGtin(normGtin) : null
+    const code = mappedCode || (normGtin ? normGtin.substring(8, 14) : '')
+    // IP label: include expiry date from barcode.
+    // OP label: lot/batch only — no expiry on label.
+    const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
     resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
     setPendingBarcode(null)
   }
@@ -171,6 +217,17 @@ export default function SmallLabelPrint({ navigate }) {
     setLot(batchNo)
     setExp(expStr)
     setError('')
+
+    // Short-exp always has all info → print immediately
+    const html = buildSmallLabelHTML(drug.name, 'IP', batchNo, expStr, drug.itemCode, settings)
+    printLabel(html, 1, settings)
+    setSuccess(true)
+    setTimeout(() => setSuccess(false), 1500)
+    setTimeout(() => {
+      clearLabel()
+      setShortExpInput('')
+      shortExpRef.current?.focus()
+    }, 400)
   }
 
   const handleShortExpKey = (e) => {
@@ -258,7 +315,21 @@ export default function SmallLabelPrint({ navigate }) {
                       <div style={{ marginBottom: 2 }}>
                         <span className={`badge ${ipop === 'OP' ? 'badge-info' : 'badge-success'}`}>{ipop} Label</span>
                       </div>
-                      {exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
+                      {ipop === 'IP' && (
+                        <div style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                            Expiry date on label
+                          </label>
+                          <input
+                            className="form-input"
+                            style={{ width: 160, fontSize: 13 }}
+                            placeholder="e.g. 01012028 or 01-Jan-2028"
+                            value={exp}
+                            onChange={e => setExp(parseUserExpiry(e.target.value))}
+                          />
+                        </div>
+                      )}
+                      {ipop !== 'IP' && exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
                       {lot && lot !== 'na----' && <div style={{ fontSize: 13 }}>Batch: <strong>{lot}</strong></div>}
                       <div style={{ marginTop: 16 }}>
                         <button className="btn btn-primary" onClick={handlePrint}>🖨 Print Label</button>

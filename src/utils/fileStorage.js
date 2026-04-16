@@ -88,9 +88,12 @@ async function writeText(handle, text) {
 }
 
 // ── Connect to a file handle ──────────────────────────────────────────────────
-async function _connect(handle) {
-  const ok = await ensurePermission(handle)
-  if (!ok) throw new Error('Read-write permission was denied for the data file.')
+// skipPermCheck: true when coming from a picker (browser already granted access)
+async function _connect(handle, skipPermCheck = false) {
+  if (!skipPermCheck) {
+    const ok = await ensurePermission(handle)
+    if (!ok) throw new Error('Read-write permission was denied for the data file.')
+  }
 
   let content = await readText(handle)
   if (!content.trim()) {
@@ -127,9 +130,9 @@ export async function pickExisting() {
   const [handle] = await window.showOpenFilePicker({
     types: [{ description: 'JSON Data File', accept: { 'application/json': ['.json'] } }],
     multiple: false,
-    mode: 'readwrite',   // request readwrite during the picker — no second prompt needed
+    mode: 'readwrite',
   })
-  await _connect(handle)
+  await _connect(handle, true)   // picker already granted access — skip perm check
   await idbSet(IDB_KEY, handle)
 }
 
@@ -139,7 +142,7 @@ export async function createNew() {
     suggestedName: 'small-label-data.json',
     types: [{ description: 'JSON Data File', accept: { 'application/json': ['.json'] } }],
   })
-  await _connect(handle)
+  await _connect(handle, true)   // save picker already granted access — skip perm check
   await idbSet(IDB_KEY, handle)
 }
 

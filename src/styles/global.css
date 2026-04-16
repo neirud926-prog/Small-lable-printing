@@ -274,11 +274,11 @@ html, body, #root {
   word-break: break-word;
 }
 .label-preview .lp-black  { background: black; color: white; border-radius: 3px; padding: 2px 6px; }
-.label-preview .lp-expiry { font-size: 9px; text-align: center; padding-bottom: 2px; }
+.label-preview .lp-expiry { font-size: 9px; text-align: left; padding-bottom: 2px; font-weight: bold; }
 /* Bat. No. row */
 .label-preview .lp-bat {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   font-size: 8px;
   font-weight: bold;
   margin-top: 6px;
@@ -287,11 +287,9 @@ html, body, #root {
   flex: 1;
   border-bottom: 1px solid #333;
   margin-left: 3px;
-  min-height: 14px;
   font-weight: normal;
   font-size: 8px;
   color: #222;
-  line-height: 13px;
   padding-left: 2px;
 }
 /* Packed by / Checked by row */

@@ -1,0 +1,129 @@
+name: Build Tauri Windows App
+
+# Triggers:
+#   - Push to this branch when source files change (auto-build)
+#   - Manual trigger from GitHub Actions tab
+on:
+  push:
+    branches:
+      - claude/tauri-remote-build-IdhJ7
+      - main
+    paths:
+      - 'src/**'
+      - 'src-tauri/src/**'
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/tauri.conf.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.js'
+  workflow_dispatch:
+
+# Allow the workflow to push the built artifacts back to the branch
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Use the default GITHUB_TOKEN (has write permission via permissions above)
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Node.js ─────────────────────────────────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # ── Rust ────────────────────────────────────────────────────────────────
+      - name: Setup Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cargo\registry
+            ~\.cargo\git
+            src-tauri\target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # ── Build ────────────────────────────────────────────────────────────────
+      - name: Build Tauri app (NSIS + MSI bundles)
+        run: npx tauri build --bundles nsis,msi
+        env:
+          # Prevent Tauri from requiring signing keys (no updater configured)
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      # ── Collect artifacts ────────────────────────────────────────────────────
+      - name: Copy installers to release/
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+
+          # NSIS installer → SmallLabelPrinting.exe (user-facing installer)
+          $nsis = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis" `
+                    -Filter "*.exe" -ErrorAction SilentlyContinue |
+                    Select-Object -First 1
+          if ($nsis) {
+            Copy-Item $nsis.FullName "release\SmallLabelPrinting.exe" -Force
+            Write-Host "Copied NSIS installer: $($nsis.Name)  ($([math]::Round($nsis.Length/1MB, 1)) MB)"
+          } else {
+            Write-Warning "NSIS installer not found under src-tauri\target\release\bundle\nsis\"
+          }
+
+          # MSI installer (keep versioned filename)
+          $msi = Get-ChildItem -Path "src-tauri\target\release\bundle\msi" `
+                   -Filter "*.msi" -ErrorAction SilentlyContinue |
+                   Select-Object -First 1
+          if ($msi) {
+            Copy-Item $msi.FullName "release\$($msi.Name)" -Force
+            Write-Host "Copied MSI installer:  $($msi.Name)  ($([math]::Round($msi.Length/1MB, 1)) MB)"
+          } else {
+            Write-Warning "MSI installer not found under src-tauri\target\release\bundle\msi\"
+          }
+
+          Write-Host "`nrelease/ directory:"
+          Get-ChildItem release\ | Format-Table Name, @{N='Size (MB)';E={[math]::Round($_.Length/1MB,1)}} -AutoSize
+
+      # ── Upload to GitHub Artifacts (always available for download) ───────────
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            release/SmallLabelPrinting.exe
+            release/*.msi
+          retention-days: 30
+
+      # ── Commit artifacts back to the branch ─────────────────────────────────
+      - name: Commit and push release artifacts
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add release\
+
+          $staged = git diff --cached --name-only
+          if ($staged) {
+            Write-Host "Committing updated artifacts:`n$staged"
+            git commit -m "chore: update Windows release artifacts [skip ci]"
+            git push
+            Write-Host "Done — artifacts pushed to branch."
+          } else {
+            Write-Host "Artifacts unchanged — nothing to commit."
+          }

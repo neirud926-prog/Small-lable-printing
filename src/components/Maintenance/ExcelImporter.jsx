@@ -229,13 +229,19 @@ export default function ExcelImporter() {
               <div style={{ maxHeight: 200, overflowY: 'auto' }}>
                 <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
                   <tbody>
-                    {preview.data.slice(0, 5).map((row, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: 6 }}>
-                          {Object.values(row).slice(0, 3).join(' | ')}
-                        </td>
-                      </tr>
-                    ))}
+                    {preview.data.slice(0, 5).map((row, idx) => {
+                      // Show meaningful columns — skip the auto-generated `id` field
+                      const shown = Object.entries(row)
+                        .filter(([k]) => k !== 'id')
+                        .slice(0, 4)
+                        .map(([, v]) => v)
+                        .join(' | ')
+                      return (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td style={{ padding: 6 }}>{shown}</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
                 {preview.count > 5 && (

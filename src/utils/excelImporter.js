@@ -1,5 +1,5 @@
-// Excel file parser for importing Products and Expiry Rules
-// Supports .xlsx files using built-in browser APIs via SheetJS library fallback
+// Excel file parser — SheetJS bundled directly (no CDN needed, works offline)
+import * as XLSX from 'xlsx'
 
 // Parse Excel file and extract sheets
 export async function parseExcelFile(file) {
@@ -7,51 +7,19 @@ export async function parseExcelFile(file) {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
-        // Use dynamic import or fallback
-        importExcelLib()
-          .then(XLSX => {
-            const data = new Uint8Array(e.target.result)
-            const workbook = XLSX.read(data, { type: 'array' })
-            const sheets = {}
-            workbook.SheetNames.forEach(name => {
-              sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name])
-            })
-            resolve(sheets)
-          })
-          .catch(err => {
-            // Fallback: manual parsing
-            console.warn('SheetJS not available, attempting basic parsing', err)
-            reject(new Error('Excel parsing library not available. Please install SheetJS or use CSV format.'))
-          })
+        const data = new Uint8Array(e.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheets = {}
+        workbook.SheetNames.forEach(name => {
+          sheets[name] = XLSX.utils.sheet_to_json(workbook.Sheets[name])
+        })
+        resolve(sheets)
       } catch (err) {
         reject(err)
       }
     }
     reader.onerror = () => reject(new Error('Failed to read file'))
     reader.readAsArrayBuffer(file)
-  })
-}
-
-// Dynamic import of SheetJS
-function importExcelLib() {
-  // Check if XLSX is already loaded globally
-  if (typeof window !== 'undefined' && window.XLSX) {
-    return Promise.resolve(window.XLSX)
-  }
-
-  // Try to load from CDN
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.min.js'
-    script.onload = () => {
-      if (window.XLSX) {
-        resolve(window.XLSX)
-      } else {
-        reject(new Error('XLSX library failed to load'))
-      }
-    }
-    script.onerror = reject
-    document.head.appendChild(script)
   })
 }
 
@@ -141,16 +109,35 @@ export function extractExpAfterOpen(data) {
     }))
 }
 
-// Extract item locations from sheet data
-// Expected columns: itemCode (or "Item Code") and location (or "Location" / "Bin Location")
+// Extract item locations from sheet data.
+// Accepts any of these headers for item code: itemCode / Item Code / ITEM CODE / Item_Code / ItemCode
+// Accepts any of these headers for location: Bin No. / BIN NO. / Bin / BIN / Location / Bin Location / Loc / LOC
+// Falls back to regex-based header matching if none of the above match.
 export function extractLocations(data) {
+  if (!data || data.length === 0) return []
+
+  const keys    = Object.keys(data[0] || {})
+  const codeKey = keys.find(k => /item.?code/i.test(k)) || keys[0]
+  const binKey  = keys.find(k => /bin|location|loc/i.test(k)) || keys[1]
+
   return data
-    .filter(row => {
-      const code = row.itemCode || row['Item Code'] || row['ITEM CODE']
-      return code && code.toString().trim()
+    .map(row => {
+      const itemCode = (
+        row.itemCode || row['Item Code'] || row['ITEM CODE'] ||
+        row['Item_Code'] || row['ItemCode'] || row['ITEMCODE'] ||
+        (codeKey ? row[codeKey] : '') || ''
+      ).toString().trim().toUpperCase()
+
+      const location = (
+        row['Bin No.']  || row['BIN NO.']  || row['Bin_No'] ||
+        row['Bin']      || row['BIN']      || row['bin'] ||
+        row.location    || row['Location'] || row['LOCATION'] ||
+        row['Bin Location'] || row['BIN LOCATION'] ||
+        row['Loc']      || row['LOC']      || row['loc'] ||
+        (binKey ? row[binKey] : '') || ''
+      ).toString().trim()
+
+      return { itemCode, location }
     })
-    .map(row => ({
-      itemCode: (row.itemCode || row['Item Code'] || row['ITEM CODE'] || '').toString().trim().toUpperCase(),
-      location: (row.location || row['Location'] || row['LOCATION'] || row['Bin Location'] || row['BIN LOCATION'] || '').toString().trim(),
-    }))
+    .filter(r => r.itemCode && r.location && r.location !== '-')
 }

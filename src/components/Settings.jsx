@@ -1,9 +1,13 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getSettings, saveSettings, exportAllData, importAllData } from '../utils/storage'
+import { getSettings, saveSettings, exportAllData, importAllData,
+         getDataPaths, saveDataPaths } from '../utils/storage'
 import { isConnected as isFileConnected, getFileName, disconnect as fileDisconnect } from '../utils/fileStorage'
-import { isConnected as isServerConnected, getBaseUrl,
-         disconnect as serverDisconnect, tryConnect as tryServerConnect } from '../utils/serverStorage'
+import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
+import { autoLoad } from '../utils/dataLoader'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
+import { isTauri } from '../utils/tauriStorage'
 
 const LOCATIONS = ['IP/OP', 'EC', 'SM']
 
@@ -13,10 +17,58 @@ export default function Settings({ navigate }) {
   const [pinForm, setPinForm]    = useState({ current: '', newPin: '', confirm: '' })
   const [pinMsg, setPinMsg]      = useState('')
   const [importMsg, setImportMsg] = useState('')
-  const [serverUrlInput, setServerUrlInput] = useState(getBaseUrl() || 'http://localhost:3000')
-  const [serverMsg, setServerMsg] = useState('')
+  const [dataPaths, setDataPaths] = useState(getDataPaths)
+  const [refreshMsg, setRefreshMsg] = useState('')
+  const [printers, setPrinters]  = useState([])
+
+  // Load available printers from the Tauri backend on first render
+  useEffect(() => {
+    if (!isTauri()) return
+    invoke('list_printers')
+      .then(list => { if (Array.isArray(list)) setPrinters(list) })
+      .catch(() => {}) // non-critical — falls back to text input
+  }, [])
 
   const set = (k, v) => _setSettings(s => ({ ...s, [k]: v }))
+
+  const setPath = (k, v) => setDataPaths(p => ({ ...p, [k]: v }))
+
+  const savePathsToDisk = (updated) => {
+    saveDataPaths(updated)
+  }
+
+  const browsePath = async (key, filters) => {
+    if (!isTauri()) return
+    try {
+      const selected = await openDialog({ multiple: false, filters })
+      if (selected) {
+        const updated = { ...dataPaths, [key]: selected }
+        setDataPaths(updated)
+        savePathsToDisk(updated)
+      }
+    } catch { /* user cancelled */ }
+  }
+
+  const handleRefreshNow = async () => {
+    setRefreshMsg('Refreshing…')
+    try {
+      const result = await autoLoad()
+      const loaded = [
+        result.phqLoaded      && 'PHQ drugs',
+        result.locationLoaded && 'Locations',
+        result.gtinLoaded     && 'GTIN',
+      ].filter(Boolean)
+      const msg = loaded.length
+        ? `✓ Refreshed: ${loaded.join(', ')}`
+        : result.errors?.length
+          ? `✗ ${result.errors.join(' | ')}`
+          : '— No paths configured'
+      setRefreshMsg(msg)
+    } catch (e) {
+      setRefreshMsg(`✗ ${e.message || e}`)
+    }
+    setTimeout(() => setRefreshMsg(''), 5000)
+  }
 
   const handleSave = () => {
     saveSettings(settings)
@@ -87,26 +139,18 @@ export default function Settings({ navigate }) {
 
         {/* Data connection status */}
         {(() => {
-          const serverOk = isServerConnected()
-          const fileOk   = isFileConnected()
-          const color  = serverOk ? 'var(--primary)' : fileOk ? 'var(--success)' : 'var(--warning)'
-          const icon   = serverOk ? '🖥️' : fileOk ? '🗂️' : '💻'
-          const title  = serverOk ? 'Server Connected' : fileOk ? 'Shared File Connected' : 'Local Storage Only'
-          const detail = serverOk ? `Server: ${getBaseUrl()}`
-                       : fileOk   ? `File: ${getFileName()}`
-                       : 'Data is stored on this PC only. Connect to a server or shared file to share across PCs.'
+          const tauriOk = isTauriConnected()
+          const fileOk  = isFileConnected()
+          const color  = tauriOk ? 'var(--primary)' : fileOk ? 'var(--success)' : 'var(--warning)'
+          const icon   = tauriOk ? '💾' : fileOk ? '🗂️' : '💻'
+          const title  = tauriOk ? 'Auto-save Active' : fileOk ? 'Shared File Connected' : 'Local Storage Only'
+          const detail = tauriOk ? `Every change is written to ${getTauriPath()}`
+                       : fileOk  ? `File: ${getFileName()}`
+                       : 'Data is stored in this browser only. Install the desktop app for automatic disk persistence.'
 
           const handleDisconnect = async () => {
-            if (serverOk) serverDisconnect()
-            if (fileOk)   await fileDisconnect()
+            if (fileOk) await fileDisconnect()
             window.location.reload()
-          }
-
-          const handleReconnectServer = async () => {
-            setServerMsg('')
-            const ok = await tryServerConnect(serverUrlInput)
-            if (ok) { setServerMsg('✓ Connected!'); setTimeout(() => window.location.reload(), 800) }
-            else    { setServerMsg('✗ Could not reach server. Is START-SERVER.bat running?') }
           }
 
           return (
@@ -117,46 +161,63 @@ export default function Settings({ navigate }) {
                   <div style={{ fontWeight: 700 }}>{title}</div>
                   <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{detail}</div>
                 </div>
-                {(serverOk || fileOk) && (
+                {fileOk && !tauriOk && (
                   <button className="btn btn-ghost btn-sm" onClick={handleDisconnect}>
                     Change
                   </button>
                 )}
               </div>
-
-              {/* Server URL editor — shown when connected to server, or to set one up */}
-              <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-                  {serverOk ? 'Server URL' : 'Connect to a server'}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    className="form-input"
-                    style={{ flex: 1, fontSize: 13 }}
-                    value={serverUrlInput}
-                    onChange={e => setServerUrlInput(e.target.value)}
-                    placeholder="http://localhost:3000"
-                    onKeyDown={e => e.key === 'Enter' && handleReconnectServer()}
-                  />
-                  <button className="btn btn-primary btn-sm" onClick={handleReconnectServer}
-                    style={{ whiteSpace: 'nowrap' }}>
-                    {serverOk ? 'Reconnect' : 'Connect'}
-                  </button>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Same PC: <code>http://localhost:3000</code> &nbsp;·&nbsp;
-                  Other PC: <code>http://&lt;server-IP&gt;:3000</code>
-                </div>
-                {serverMsg && (
-                  <div style={{ marginTop: 6, fontSize: 12,
-                    color: serverMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)' }}>
-                    {serverMsg}
-                  </div>
-                )}
-              </div>
             </div>
           )
         })()}
+
+        {/* Data Sources */}
+        <div className="card">
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>📂 Data Sources</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 14 }}>
+            Paths are read on every app startup and when you click Refresh Now.
+          </div>
+
+          {[
+            { key: 'phq',      label: 'PHQ Drug List',     hint: '.txt',   filters: [{ name: 'Text', extensions: ['txt'] }] },
+            { key: 'location', label: 'Item Location',     hint: '.xls',   filters: [{ name: 'Excel', extensions: ['xls','xlsx'] }] },
+            { key: 'gtin',     label: 'GTIN Database',     hint: '.accdb', filters: [{ name: 'Access', extensions: ['accdb','mdb'] }] },
+          ].map(({ key, label, hint, filters }) => (
+            <div key={key} className="form-group" style={{ marginBottom: 10 }}>
+              <label className="form-label">{label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({hint})</span></label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="form-input"
+                  style={{ flex: 1, fontSize: 12, fontFamily: 'monospace' }}
+                  value={dataPaths[key] || ''}
+                  onChange={e => {
+                    const updated = { ...dataPaths, [key]: e.target.value }
+                    setDataPaths(updated)
+                    savePathsToDisk(updated)
+                  }}
+                  placeholder={`e.g. D:\\Data\\${hint === '.txt' ? 'PHQ.txt' : hint === '.xls' ? 'ItemLocation.xls' : 'GTIN.accdb'}`}
+                />
+                {isTauri() && (
+                  <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }}
+                    onClick={() => browsePath(key, filters)}>
+                    Browse…
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+            <button className="btn btn-primary btn-sm" onClick={handleRefreshNow}>
+              🔄 Refresh Now
+            </button>
+            {refreshMsg && (
+              <span style={{ fontSize: 12, color: refreshMsg.startsWith('✓') ? 'var(--success)' : refreshMsg.startsWith('✗') ? 'var(--danger)' : 'var(--text-muted)' }}>
+                {refreshMsg}
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* General Settings */}
         <div className="card">
@@ -178,9 +239,31 @@ export default function Settings({ navigate }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Thermal Printer Name</label>
-            <input className="form-input" value={settings.printerName} onChange={e => set('printerName', e.target.value)}
-              placeholder="e.g. Thermal GX420t - PMS" />
+            <label className="form-label">Thermal Printer</label>
+            {isTauri() && printers.length > 0 ? (
+              <select
+                className="form-select"
+                value={settings.printerName}
+                onChange={e => set('printerName', e.target.value)}
+              >
+                <option value="">— Select a printer —</option>
+                {printers.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className="form-input"
+                value={settings.printerName}
+                onChange={e => set('printerName', e.target.value)}
+                placeholder="e.g. Thermal GX420t - PMS"
+              />
+            )}
+            {isTauri() && printers.length === 0 && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                No printers detected — enter the name manually or check that the app has access.
+              </div>
+            )}
           </div>
 
           <div className="form-group">
@@ -199,6 +282,55 @@ export default function Settings({ navigate }) {
               <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Uncheck if you have configured Chrome to auto-print silently (see guide below).</div>
             </div>
           </label>
+
+          {isTauri() && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
+              <input type="checkbox" checked={!!settings.silentPrint} onChange={e => set('silentPrint', e.target.checked)} />
+              <div>
+                <div style={{ fontWeight: 600 }}>Silent print (no dialog)</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                  Prints directly to the selected printer using native Windows printing
+                  (PowerShell + System.Drawing) — <strong>no browser required</strong>.
+                  If native printing fails, automatically falls back to Edge / Chrome / Brave
+                  with kiosk mode. Select your thermal printer above, then enable this.
+                </div>
+              </div>
+            </label>
+          )}
+        </div>
+
+        {/* Barcode Decoder */}
+        <div className="card">
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>📷 Barcode Decoder Method</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>
+            Controls how GTIN barcodes from drug boxes are parsed. Switch to Legacy if GS1 mode gives incorrect results for your scanner.
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { value: 'gs1',    label: 'GS1 AI Parser',     desc: 'Recommended — reads Application Identifiers (01)(10)(17) in any order. Works with QR, Data Matrix, and GS1-128.' },
+              { value: 'legacy', label: 'Legacy (P0–P6)',     desc: 'Original positional patterns. Use if your scanner outputs a non-standard format that the GS1 parser cannot handle.' },
+            ].map(opt => (
+              <label key={opt.value} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13,
+                cursor: 'pointer', flex: 1, minWidth: 200,
+                padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: settings.barcodeMethod === opt.value ? 'var(--primary-light, #eff6ff)' : 'var(--bg)',
+              }}>
+                <input
+                  type="radio"
+                  name="barcodeMethod"
+                  value={opt.value}
+                  checked={settings.barcodeMethod === opt.value}
+                  onChange={() => set('barcodeMethod', opt.value)}
+                  style={{ marginTop: 2 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600 }}>{opt.label}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
         </div>
 
         {/* Auto-Print Setup Guide */}
@@ -298,7 +430,7 @@ export default function Settings({ navigate }) {
           </label>
 
           <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-            Default: 34.4 × 25 mm · Arial · Drug 8.5pt bold · Batch 6pt · Sign 5.5pt
+            Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · No padding
           </div>
         </div>
 
