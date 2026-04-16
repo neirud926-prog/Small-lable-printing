@@ -299,6 +299,40 @@ export default function Settings({ navigate }) {
           )}
         </div>
 
+        {/* Barcode Decoder */}
+        <div className="card">
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>📷 Barcode Decoder Method</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12 }}>
+            Controls how GTIN barcodes from drug boxes are parsed. Switch to Legacy if GS1 mode gives incorrect results for your scanner.
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { value: 'gs1',    label: 'GS1 AI Parser',     desc: 'Recommended — reads Application Identifiers (01)(10)(17) in any order. Works with QR, Data Matrix, and GS1-128.' },
+              { value: 'legacy', label: 'Legacy (P0–P6)',     desc: 'Original positional patterns. Use if your scanner outputs a non-standard format that the GS1 parser cannot handle.' },
+            ].map(opt => (
+              <label key={opt.value} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13,
+                cursor: 'pointer', flex: 1, minWidth: 200,
+                padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                background: settings.barcodeMethod === opt.value ? 'var(--primary-light, #eff6ff)' : 'var(--bg)',
+              }}>
+                <input
+                  type="radio"
+                  name="barcodeMethod"
+                  value={opt.value}
+                  checked={settings.barcodeMethod === opt.value}
+                  onChange={() => set('barcodeMethod', opt.value)}
+                  style={{ marginTop: 2 }}
+                />
+                <div>
+                  <div style={{ fontWeight: 600 }}>{opt.label}</div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* Auto-Print Setup Guide */}
         <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🖨️ Chrome Auto-Print Setup Guide</div>

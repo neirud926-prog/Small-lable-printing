@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { decodeBarcode, formatExpiry, isResultValid } from '../utils/barcodeDecoder'
+import { decodeBarcode, formatExpiry, isResultValid, normaliseGtin } from '../utils/barcodeDecoder'
 import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
@@ -146,12 +146,11 @@ export default function SmallLabelPrint({ navigate }) {
     if (val.length === 6) {
       // 6-char item code → OP
       resolveLabel(val, 'OP', '', '')
-    } else if (/^\d{8,}/.test(val)) {
-      // Starts with digits → GTIN barcode
-      const decoded = decodeBarcode(val)
+    } else if (/^\d{8,}/.test(val) || /^\](C|d|Q|e)/.test(raw)) {
+      // Starts with digits or has GS1 symbology prefix → GTIN barcode
+      const decoded = decodeBarcode(raw.trim(), settings.barcodeMethod || 'gs1')
       if (!decoded) { setError('Could not decode barcode'); return }
-      // Extract item code: need DB lookup; for now show IP/OP modal
-      setPendingBarcode({ decoded, rawBarcode: val })
+      setPendingBarcode({ decoded, rawBarcode: raw.trim() })
       setShowIPOP(true)
     } else if (val.length === 13) {
       // 13-char IP barcode: extract chars 5-10 for item code
@@ -178,9 +177,10 @@ export default function SmallLabelPrint({ navigate }) {
     if (!pendingBarcode) return
     const { decoded } = pendingBarcode
     const [gtin, lotVal, expRaw] = decoded
-    // Look up item code from GTIN map first; fall back to substring extraction
-    const mappedCode = gtin ? findByGtin(gtin) : null
-    const code = mappedCode || (gtin ? gtin.substring(8, 14) : '')
+    // Normalise GTIN to 14 digits, then look up in map; fall back to last-6-digits extraction
+    const normGtin = gtin ? normaliseGtin(gtin) : null
+    const mappedCode = normGtin ? findByGtin(normGtin) : null
+    const code = mappedCode || (normGtin ? normGtin.substring(8, 14) : '')
     const expFormatted = expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
     resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
     setPendingBarcode(null)

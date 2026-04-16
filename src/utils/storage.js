@@ -165,6 +165,8 @@ export function getSettings() {
     drugFontBold:    true,
     batchFontSize:   5,
     signFontSize:    5,
+    // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
+    barcodeMethod:   'gs1',
   })
 }
 export function saveSettings(settings) {
