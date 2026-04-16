@@ -5,6 +5,9 @@
 //   'gs1'    — proper GS1 Application Identifier parser (default)
 //   'legacy' — original positional P0–P6 patterns (kept as fallback)
 //
+// Supported AIs: 01/02 → GTIN, 10 → batch, 15/17 → expiry
+//                11 (production date), 21 (serial), 90 (internal) — parsed, not used on label
+//
 // Pass method as second argument to decodeBarcode(), or rely on the
 // default which reads from the app settings.
 
