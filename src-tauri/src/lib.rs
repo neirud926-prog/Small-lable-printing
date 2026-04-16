@@ -459,12 +459,12 @@ try {{
     $conn.ConnectionString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source='{path}';"
     $conn.Open()
     $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT ItemCode, GTIN FROM GTIN"
+    $cmd.CommandText = "SELECT [Item Code], GTIN FROM GTIN"
     $reader = $cmd.ExecuteReader()
     $rows = @()
     while ($reader.Read()) {{
         $rows += [pscustomobject]@{{
-            ItemCode = $reader["ItemCode"].ToString().Trim()
+            ItemCode = $reader["Item Code"].ToString().Trim()
             GTIN     = $reader["GTIN"].ToString().Trim()
         }}
     }}
