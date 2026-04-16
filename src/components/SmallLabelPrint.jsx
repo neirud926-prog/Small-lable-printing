@@ -181,7 +181,9 @@ export default function SmallLabelPrint({ navigate }) {
     const normGtin = gtin ? normaliseGtin(gtin) : null
     const mappedCode = normGtin ? findByGtin(normGtin) : null
     const code = mappedCode || (normGtin ? normGtin.substring(8, 14) : '')
-    const expFormatted = expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
+    // IP label: include expiry date from barcode.
+    // OP label: lot/batch only — no expiry on label.
+    const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
     resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
     setPendingBarcode(null)
   }
