@@ -1,5 +1,141 @@
-// Port of MReadingBarCode.bas — GS1/Distributor barcode decoding
+// GS1/Distributor barcode decoding
 // Returns array: [gtin, lot, exp] where exp is YYMMDD string
+//
+// Two decode methods available:
+//   'gs1'    — proper GS1 Application Identifier parser (default)
+//   'legacy' — original positional P0–P6 patterns (kept as fallback)
+//
+// Pass method as second argument to decodeBarcode(), or rely on the
+// default which reads from the app settings.
+
+// ── GS1 AI lookup tables ──────────────────────────────────────────────────────
+// Fixed-length AIs: key = AI string, value = data byte count after the AI
+const GS1_FIXED = {
+  '00': 18,  // SSCC
+  '01': 14,  // GTIN-14
+  '02': 14,  // GTIN of contained trade item
+  '11': 6,   // Production date YYMMDD
+  '12': 6,   // Due date YYMMDD
+  '13': 6,   // Packaging date YYMMDD
+  '15': 6,   // Best before date YYMMDD
+  '16': 6,   // Sell by date YYMMDD
+  '17': 6,   // Expiry date YYMMDD
+  '18': 6,   // Production variant
+  '19': 6,   // Sell by YYMMDD
+  '20': 2,   // Variant number
+  '31': 6, '32': 6, '33': 6, '34': 6, '35': 6, '36': 6,  // Measures
+  '41': 13,  // EAN/UCC
+}
+// Variable-length AIs (terminated by FNC1 \u001d unless last field)
+const GS1_VARIABLE = new Set([
+  '10',  // Batch / Lot number
+  '21',  // Serial number
+  '22',  // Secondary data
+  '30',  // Count
+  '37',  // Count of trade items
+  '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', // Internal use
+])
+
+// ── GS1 AI parser ─────────────────────────────────────────────────────────────
+/**
+ * Parse a GS1 barcode string into a map of Application Identifiers.
+ * Handles:
+ *   - Symbology identifiers: ]C1 (GS1-128), ]d2 (Data Matrix), ]Q3 (QR)
+ *   - FNC1 separator: ASCII 29 (\u001d) or ^ substitute
+ * Returns null if the string doesn't look like a GS1 AI stream.
+ */
+function parseGS1AIs(raw) {
+  let s = raw
+
+  // Strip GS1 symbology identifiers emitted by some scanners
+  s = s.replace(/^\]([CdQe][\dA-Fa-f]|[CdQe]\d{2})/, '')
+
+  // Normalise FNC1: some scanners substitute ^ for the invisible ASCII 29
+  const FNC1 = '\u001d'
+  s = s.replace(/\^/g, FNC1)
+
+  // Must start with a known AI prefix to qualify as a GS1 stream
+  const knownStart = ['00', '01', '02', '10', '11', '15', '17', '20', '21', '30']
+  if (!knownStart.some(ai => s.startsWith(ai))) return null
+
+  const ais = {}
+  let i = 0
+
+  while (i < s.length) {
+    // Skip FNC1 separators between fields
+    if (s[i] === FNC1) { i++; continue }
+
+    let matched = false
+
+    // Try 4-char AI first, then 3-char, then 2-char (longest match wins)
+    for (const alen of [4, 3, 2]) {
+      if (i + alen > s.length) continue
+      const ai = s.substring(i, i + alen)
+
+      if (GS1_FIXED[ai] !== undefined) {
+        // Fixed-length field — consume exactly that many data bytes
+        ais[ai] = s.substring(i + alen, i + alen + GS1_FIXED[ai])
+        i += alen + GS1_FIXED[ai]
+        matched = true
+        break
+      }
+
+      if (GS1_VARIABLE.has(ai)) {
+        // Variable-length field — read until FNC1 or end of string
+        const end = s.indexOf(FNC1, i + alen)
+        ais[ai] = end === -1 ? s.substring(i + alen) : s.substring(i + alen, end)
+        i = end === -1 ? s.length : end + 1
+        matched = true
+        break
+      }
+    }
+
+    // Unknown AI — stop parsing (don't corrupt the map with garbage)
+    if (!matched) break
+  }
+
+  return Object.keys(ais).length > 0 ? ais : null
+}
+
+/**
+ * Normalise a GTIN to 14 digits.
+ * EAN-13 (13 digits) → prepend '0'
+ * Shorter codes        → left-pad with zeros up to 14
+ */
+export function normaliseGtin(gtin) {
+  if (!gtin) return gtin
+  let g = gtin.trim()
+  while (g.length < 14) g = '0' + g
+  return g.length === 14 ? g : g.substring(g.length - 14) // keep last 14 if longer
+}
+
+// ── GS1 decode (new) ──────────────────────────────────────────────────────────
+function decodeGs1(barcode) {
+  // 1. Plain 14-digit GTIN (no AIs, no extra data)
+  if (/^\d{14}$/.test(barcode)) {
+    return [barcode, 'na----', 'na----']
+  }
+
+  // 2. Short numeric → normalise to GTIN-14 (e.g. EAN-13, EAN-8)
+  if (/^\d{8,13}$/.test(barcode)) {
+    return [normaliseGtin(barcode), 'na----', 'na----']
+  }
+
+  // 3. Full GS1 AI stream
+  const ais = parseGS1AIs(barcode)
+  if (ais && ais['01']) {
+    const gtin = normaliseGtin(ais['01'])
+    const lot  = ais['10'] || 'na----'
+    // Prefer expiry (17) → best-before (15) → production date (11)
+    const exp  = ais['17'] || ais['15'] || ais['11'] || 'na----'
+    return [gtin, lot, exp]
+  }
+
+  return null  // could not decode
+}
+
+// ── Legacy positional patterns (P0–P6) ───────────────────────────────────────
+// Original port of MReadingBarCode.bas — kept verbatim as fallback
 
 function patternFound(barcode, tagA, tagB, diff) {
   const posA = []
@@ -166,25 +302,9 @@ function algoTestP6(barcode) {
   return result
 }
 
-export function isResultValid(result) {
-  if (!result || result[0] === false || result[0] === null) return false
-  const [gtin, lot, exp] = result
-  return (
-    typeof gtin === 'string' && gtin.length === 14 &&
-    typeof exp === 'string' && exp.length === 6 &&
-    typeof lot === 'string' && lot.length > 0
-  )
-}
+function decodeLegacy(barcode) {
+  if (barcode.length <= 16) return algoTestP0(barcode)
 
-export function decodeBarcode(barcode) {
-  if (!barcode) return null
-  barcode = barcode.trim()
-
-  if (barcode.length <= 16) {
-    return algoTestP0(barcode)
-  }
-
-  // Try P0 first
   let result = algoTestP0(barcode)
   if (isResultValid(result)) return result
 
@@ -208,10 +328,40 @@ export function decodeBarcode(barcode) {
   }
 
   // Fallback: return GTIN only
-  if (barcode.length >= 16) {
-    return [barcode.substring(2, 16), 'na----', 'na----']
-  }
+  if (barcode.length >= 16) return [barcode.substring(2, 16), 'na----', 'na----']
   return null
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export function isResultValid(result) {
+  if (!result || result[0] === false || result[0] === null) return false
+  const [gtin, lot, exp] = result
+  return (
+    typeof gtin === 'string' && gtin.length === 14 &&
+    typeof exp  === 'string' && exp.length === 6 &&
+    typeof lot  === 'string' && lot.length > 0
+  )
+}
+
+/**
+ * Decode a barcode string.
+ * @param {string} barcode  Raw scanner output
+ * @param {string} method   'gs1' (default) | 'legacy'
+ * @returns {[string, string, string] | null}  [gtin14, lot, expYYMMDD] or null
+ */
+export function decodeBarcode(barcode, method = 'gs1') {
+  if (!barcode) return null
+  barcode = barcode.trim()
+
+  if (method === 'legacy') return decodeLegacy(barcode)
+
+  // GS1 path — try new parser first, fall through to legacy on failure
+  const gs1Result = decodeGs1(barcode)
+  if (gs1Result) return gs1Result
+
+  // Legacy fallback for non-standard barcodes the GS1 parser can't handle
+  return decodeLegacy(barcode)
 }
 
 // Format exp YYMMDD → DD-Mon-YYYY  (e.g. "01-Jan-2028")
