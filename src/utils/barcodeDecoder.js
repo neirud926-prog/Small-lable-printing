@@ -40,11 +40,50 @@ const GS1_VARIABLE = new Set([
 ])
 
 // ── GS1 AI parser ─────────────────────────────────────────────────────────────
+
+/**
+ * When a variable-length field has no FNC1 terminator, scan forward from
+ * startPos looking for the next plausible AI boundary.
+ *
+ * Accepts:
+ *   - Date AIs 11 / 15 / 17  — only when followed by a valid YYMMDD date
+ *     (month 01-12, day 00-31). This prevents false positives where the
+ *     batch data happens to contain "11" or "17" as digit pairs.
+ *   - Serial AI 21
+ *   - Company-internal AIs 90-99 (no validation needed)
+ *
+ * Returns the index within s of the next AI start, or -1 if not found.
+ *
+ * Example: "A520005A11727123190HK-28748"
+ *   pos 8 → "11" with date "727123" → MM=71 INVALID → skip
+ *   pos 9 → "17" with date "271231" → MM=12 DD=31 VALID → return 9  ✓
+ */
+function findNextAIBoundary(s, startPos) {
+  for (let pos = startPos; pos < s.length - 1; pos++) {
+    const ai = s.substring(pos, pos + 2)
+
+    // Date AIs: validate the 6-char YYMMDD that follows
+    if (ai === '11' || ai === '15' || ai === '17') {
+      if (pos + 8 <= s.length) {
+        const mm = parseInt(s.substring(pos + 4, pos + 6), 10)
+        const dd = parseInt(s.substring(pos + 6, pos + 8), 10)
+        if (mm >= 1 && mm <= 12 && dd >= 0 && dd <= 31) return pos
+      }
+    }
+    // Company-internal AIs 90-99 — always a valid boundary
+    if (/^9[0-9]$/.test(ai)) return pos
+    // Serial number
+    if (ai === '21') return pos
+  }
+  return -1
+}
+
 /**
  * Parse a GS1 barcode string into a map of Application Identifiers.
  * Handles:
  *   - Symbology identifiers: ]C1 (GS1-128), ]d2 (Data Matrix), ]Q3 (QR)
  *   - FNC1 separator: ASCII 29 (\u001d) or ^ substitute
+ *   - Variable-length fields with no FNC1 (uses AI-boundary lookahead)
  * Returns null if the string doesn't look like a GS1 AI stream.
  */
 function parseGS1AIs(raw) {
@@ -84,10 +123,17 @@ function parseGS1AIs(raw) {
       }
 
       if (GS1_VARIABLE.has(ai)) {
-        // Variable-length field — read until FNC1 or end of string
+        // Variable-length field — read until FNC1; if absent, use AI-boundary
+        // lookahead so variable fields don't swallow subsequent AIs.
         const end = s.indexOf(FNC1, i + alen)
-        ais[ai] = end === -1 ? s.substring(i + alen) : s.substring(i + alen, end)
-        i = end === -1 ? s.length : end + 1
+        if (end !== -1) {
+          ais[ai] = s.substring(i + alen, end)
+          i = end + 1
+        } else {
+          const boundary = findNextAIBoundary(s, i + alen)
+          ais[ai] = boundary !== -1 ? s.substring(i + alen, boundary) : s.substring(i + alen)
+          i = boundary !== -1 ? boundary : s.length
+        }
         matched = true
         break
       }
