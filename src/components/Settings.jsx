@@ -54,9 +54,11 @@ export default function Settings({ navigate }) {
     try {
       const result = await autoLoad()
       const loaded = [
-        result.phqLoaded      && 'PHQ drugs',
-        result.locationLoaded && 'Locations',
-        result.gtinLoaded     && 'GTIN',
+        result.phqLoaded          && 'PHQ drugs',
+        result.locationLoaded     && 'Locations',
+        result.mobileShelfLoaded  && 'Mobile Shelf',
+        result.ev54DrugsLoaded    && 'EV54 Drugs',
+        result.gtinLoaded         && 'GTIN',
       ].filter(Boolean)
       const msg = loaded.length
         ? `✓ Refreshed: ${loaded.join(', ')}`
@@ -179,9 +181,11 @@ export default function Settings({ navigate }) {
           </div>
 
           {[
-            { key: 'phq',      label: 'PHQ Drug List',     hint: '.txt',   filters: [{ name: 'Text', extensions: ['txt'] }] },
-            { key: 'location', label: 'Item Location',     hint: '.xls',   filters: [{ name: 'Excel', extensions: ['xls','xlsx'] }] },
-            { key: 'gtin',     label: 'GTIN Database',     hint: '.accdb', filters: [{ name: 'Access', extensions: ['accdb','mdb'] }] },
+            { key: 'phq',         label: 'PHQ Drug List',   hint: '.txt',       filters: [{ name: 'Text',   extensions: ['txt'] }] },
+            { key: 'location',    label: 'Item Location',   hint: '.xls',       filters: [{ name: 'Excel',  extensions: ['xls','xlsx'] }] },
+            { key: 'mobileShelf', label: 'Mobile Shelf',    hint: '.xls/.xlsx', filters: [{ name: 'Excel',  extensions: ['xls','xlsx'] }] },
+            { key: 'ev54Drugs',   label: 'EV54 Drugs',      hint: '.xls/.xlsx', filters: [{ name: 'Excel',  extensions: ['xls','xlsx'] }] },
+            { key: 'gtin',        label: 'GTIN Database',   hint: '.accdb',     filters: [{ name: 'Access', extensions: ['accdb','mdb'] }] },
           ].map(({ key, label, hint, filters }) => (
             <div key={key} className="form-group" style={{ marginBottom: 10 }}>
               <label className="form-label">{label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({hint})</span></label>
@@ -279,24 +283,38 @@ export default function Settings({ navigate }) {
             <input type="checkbox" checked={settings.showPrintDialog} onChange={e => set('showPrintDialog', e.target.checked)} />
             <div>
               <div style={{ fontWeight: 600 }}>Show print dialog</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Uncheck if you have configured Chrome to auto-print silently (see guide below).</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Shows the OS print dialog before each label. Uncheck to print straight to the default printer.</div>
             </div>
           </label>
 
-          {isTauri() && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
-              <input type="checkbox" checked={!!settings.silentPrint} onChange={e => set('silentPrint', e.target.checked)} />
-              <div>
-                <div style={{ fontWeight: 600 }}>Silent print (no dialog)</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  Prints directly to the selected printer using native Windows printing
-                  (PowerShell + System.Drawing) — <strong>no browser required</strong>.
-                  If native printing fails, automatically falls back to Edge / Chrome / Brave
-                  with kiosk mode. Select your thermal printer above, then enable this.
-                </div>
+          <label
+            style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13,
+              cursor: isTauri() ? 'pointer' : 'not-allowed',
+              marginTop: 12, padding: '10px 12px',
+              borderRadius: 8, border: '1px solid var(--border)',
+              background: settings.silentPrint && isTauri() ? 'var(--primary-light, #eff6ff)' : 'var(--bg)',
+              opacity: isTauri() ? 1 : 0.55,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!settings.silentPrint}
+              onChange={e => set('silentPrint', e.target.checked)}
+              disabled={!isTauri()}
+              style={{ marginTop: 2 }}
+            />
+            <div>
+              <div style={{ fontWeight: 600 }}>
+                🖨️ Silent print (PowerShell + System.Drawing)
+                {!isTauri() && (
+                  <span style={{ fontSize: 11, color: 'var(--warning)', marginLeft: 8, fontWeight: 500 }}>
+                    Desktop app only
+                  </span>
+                )}
               </div>
-            </label>
-          )}
+            </div>
+          </label>
         </div>
 
         {/* Barcode Decoder */}
@@ -330,27 +348,6 @@ export default function Settings({ navigate }) {
                 </div>
               </label>
             ))}
-          </div>
-        </div>
-
-        {/* Auto-Print Setup Guide */}
-        <div className="card" style={{ borderLeft: '4px solid var(--primary)' }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🖨️ Chrome Auto-Print Setup Guide</div>
-          <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text)' }}>
-            <p style={{ marginBottom: 8 }}>To make Chrome print silently to your thermal printer without showing a dialog:</p>
-            <ol style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <li>Open Chrome and go to <code style={{ background: 'var(--bg)', padding: '1px 6px', borderRadius: 4 }}>chrome://settings/printing</code></li>
-              <li>Under <strong>Default printer</strong>, select your thermal printer: <strong>{settings.printerName}</strong></li>
-              <li>Open Chrome with the <strong>--kiosk-printing</strong> flag to skip the dialog automatically:<br />
-                <code style={{ background: 'var(--bg)', padding: '4px 8px', borderRadius: 4, fontSize: 12, display: 'inline-block', marginTop: 4 }}>
-                  chrome.exe --kiosk-printing "file:///path/to/index.html"
-                </code>
-              </li>
-              <li>Or create a shortcut on the desktop with the above command as the target.</li>
-            </ol>
-            <p style={{ marginTop: 12, color: 'var(--text-muted)' }}>
-              <strong>Note:</strong> Without --kiosk-printing, Chrome will always show the print dialog. Staff can still select the correct printer manually.
-            </p>
           </div>
         </div>
 
@@ -431,28 +428,6 @@ export default function Settings({ navigate }) {
 
           <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
             Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · No padding
-          </div>
-        </div>
-
-        {/* MS Access guide */}
-        <div className="card" style={{ borderLeft: '4px solid var(--warning)' }}>
-          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🗄️ Import Drug Database from MS Access</div>
-          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
-            <p style={{ marginBottom: 10, color: 'var(--text-muted)' }}>
-              This app cannot connect to MS Access directly (browser limitation).
-              Export your PHQ table as Excel, then import it here.
-            </p>
-            <ol style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <li>Open MS Access → open your PHQ database</li>
-              <li>Select the drug/PHQ table in the left panel</li>
-              <li>Click <strong>External Data</strong> → <strong>Export</strong> → <strong>Excel (.xlsx)</strong></li>
-              <li>Save the file anywhere on your PC</li>
-              <li>In this app: <strong>Maintenance → Import Excel → Drugs (PHQ)</strong></li>
-              <li>Select the exported <code>.xlsx</code> file → click <strong>Replace All</strong></li>
-            </ol>
-            <p style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
-              Required columns: <code>itemCode</code>, <code>name</code>, <code>unit</code> (optional: <code>isSpecial</code>)
-            </p>
           </div>
         </div>
 

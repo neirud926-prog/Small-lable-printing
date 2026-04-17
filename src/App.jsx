@@ -4,6 +4,7 @@ import MainMenu from './components/MainMenu'
 import SmallLabelPrint from './components/SmallLabelPrint'
 import Reconciliation from './components/Reconciliation/index'
 import Maintenance from './components/Maintenance/index'
+import EV54Tools from './components/EV54Tools/index'
 import Settings from './components/Settings'
 import FileConnect from './components/FileConnect'
 import { tryRestore, onRemoteChange, hasStoredHandle, pickExisting } from './utils/fileStorage'
@@ -143,6 +144,7 @@ export default function App() {
       case 'smalllabel':     return <SmallLabelPrint navigate={navigate} key="smalllabel" />
       case 'reconciliation': return <Reconciliation  navigate={navigate} key="reconciliation" />
       case 'maintenance':    return <Maintenance     navigate={navigate} key="maintenance" />
+      case 'ev54tools':      return <EV54Tools       navigate={navigate} key="ev54tools" />
       case 'settings':       return <Settings        navigate={navigate} key="settings" />
       default:               return <MainMenu       navigate={navigate} key="menu" />
     }

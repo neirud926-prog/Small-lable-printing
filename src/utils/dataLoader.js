@@ -10,7 +10,11 @@
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { invoke }       from '@tauri-apps/api/core'
 import * as XLSX        from 'xlsx'
-import { getDataPaths, saveDrugs, saveItemLocations, saveGtinMap, getDrugs } from './storage'
+import {
+  getDataPaths, saveDrugs, saveItemLocations, saveGtinMap, getDrugs,
+  saveMobileShelf, saveEV54Drugs,
+} from './storage'
+import { extractMobileShelf, extractEV54Drugs } from './excelImporter'
 import { isTauri }      from './tauriStorage'
 
 // ── PHQ .txt parser ───────────────────────────────────────────────────────────
@@ -82,6 +86,32 @@ async function loadLocationXls(path) {
   return map
 }
 
+// ── Mobile Shelf .xls/.xlsx parser ────────────────────────────────────────────
+// Same binary pipeline as loadLocationXls, but maps to the Mobile Shelf store.
+export async function loadMobileShelfXls(path) {
+  const binary = await invoke('read_binary_file', { path })
+  const arr    = new Uint8Array(binary)
+  const wb     = XLSX.read(arr, { type: 'array' })
+  const ws     = wb.Sheets[wb.SheetNames[0]]
+  const rows   = XLSX.utils.sheet_to_json(ws)
+  const map    = {}
+  for (const { itemCode, bin } of extractMobileShelf(rows)) {
+    if (itemCode && bin) map[itemCode] = bin
+  }
+  return map
+}
+
+// ── EV54 Drugs .xls/.xlsx parser ──────────────────────────────────────────────
+// Returns an array of { itemCode, name, evLocator } suitable for saveEV54Drugs.
+export async function loadEV54DrugsXls(path) {
+  const binary = await invoke('read_binary_file', { path })
+  const arr    = new Uint8Array(binary)
+  const wb     = XLSX.read(arr, { type: 'array' })
+  const ws     = wb.Sheets[wb.SheetNames[0]]
+  const rows   = XLSX.utils.sheet_to_json(ws)
+  return extractEV54Drugs(rows)
+}
+
 // ── GTIN .accdb reader ────────────────────────────────────────────────────────
 // Calls a Rust command that runs PowerShell → OleDB to query the Access db.
 async function loadGtinAccdb(path) {
@@ -109,6 +139,7 @@ export async function autoLoad() {
   const paths  = getDataPaths()
   const errors = []
   let phqLoaded = false, locationLoaded = false, gtinLoaded = false
+  let mobileShelfLoaded = false, ev54DrugsLoaded = false
 
   // 1. PHQ drug list
   if (paths.phq) {
@@ -137,7 +168,33 @@ export async function autoLoad() {
     }
   }
 
-  // 3. GTIN map
+  // 3. Mobile Shelf / Wooden Cabinet
+  if (paths.mobileShelf) {
+    try {
+      const map = await loadMobileShelfXls(paths.mobileShelf)
+      if (Object.keys(map).length > 0) {
+        saveMobileShelf(map)
+        mobileShelfLoaded = true
+      }
+    } catch (e) {
+      errors.push(`Mobile Shelf: ${e.message || e}`)
+    }
+  }
+
+  // 4. EV54 Drugs allowlist
+  if (paths.ev54Drugs) {
+    try {
+      const list = await loadEV54DrugsXls(paths.ev54Drugs)
+      if (list.length > 0) {
+        saveEV54Drugs(list)
+        ev54DrugsLoaded = true
+      }
+    } catch (e) {
+      errors.push(`EV54 Drugs: ${e.message || e}`)
+    }
+  }
+
+  // 5. GTIN map
   if (paths.gtin) {
     try {
       const map = await loadGtinAccdb(paths.gtin)
@@ -150,5 +207,8 @@ export async function autoLoad() {
     }
   }
 
-  return { phqLoaded, locationLoaded, gtinLoaded, errors }
+  return {
+    phqLoaded, locationLoaded, mobileShelfLoaded, ev54DrugsLoaded, gtinLoaded,
+    errors,
+  }
 }

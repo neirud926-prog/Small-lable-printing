@@ -5,10 +5,12 @@ import {
   saveAbxList, getAbxList, savePrepackList, getPrepackList,
   saveExtempList, getExtempList, saveExpAfterOpen, getExpAfterOpen,
   getItemLocations, saveItemLocations,
+  getMobileShelf, saveMobileShelf, getEV54Drugs, saveEV54Drugs,
 } from '../../utils/storage'
 import {
   parseExcelFile, extractDrugs, extractExpiryRules, extractAbx,
   extractPrepack, extractExtemp, extractExpAfterOpen, extractLocations,
+  extractMobileShelf, extractEV54Drugs,
 } from '../../utils/excelImporter'
 
 const IMPORT_MODES = [
@@ -19,6 +21,8 @@ const IMPORT_MODES = [
   { key: 'extemp', label: 'Extemp', icon: '⚗️' },
   { key: 'expAfterOpen', label: 'Exp After Open', icon: '⏰' },
   { key: 'locations', label: 'Item Locations', icon: '📍' },
+  { key: 'mobileShelf', label: 'Mobile Shelf', icon: '🟢' },
+  { key: 'ev54Drugs', label: 'EV54 Drugs', icon: '🤖' },
 ]
 
 export default function ExcelImporter() {
@@ -70,6 +74,12 @@ export default function ExcelImporter() {
           break
         case 'locations':
           extractedData = extractLocations(sheetData)
+          break
+        case 'mobileShelf':
+          extractedData = extractMobileShelf(sheetData)
+          break
+        case 'ev54Drugs':
+          extractedData = extractEV54Drugs(sheetData)
           break
         default:
           break
@@ -124,6 +134,16 @@ export default function ExcelImporter() {
           saveItemLocations(existingMap)
           break
         }
+        case 'mobileShelf': {
+          const existingMap = replaceAll ? {} : getMobileShelf()
+          preview.data.forEach(row => { existingMap[row.itemCode] = row.bin })
+          saveMobileShelf(existingMap)
+          break
+        }
+        case 'ev54Drugs':
+          existing = getEV54Drugs()
+          saveEV54Drugs(replaceAll ? preview.data : [...existing, ...preview.data])
+          break
         default:
           break
       }
@@ -213,6 +233,12 @@ export default function ExcelImporter() {
                 )}
                 {mode === 'locations' && (
                   <div>itemCode (or "Item Code"), location (or "Location" / "Bin Location")</div>
+                )}
+                {mode === 'mobileShelf' && (
+                  <div>Item Code, Bin No. (same columns as Item Location; EV54 refill shelf takes display priority)</div>
+                )}
+                {mode === 'ev54Drugs' && (
+                  <div>Item Code, Description, EV Locator (flexible header match: code/name/locator)</div>
                 )}
               </div>
             </div>
