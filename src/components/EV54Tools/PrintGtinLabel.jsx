@@ -38,7 +38,7 @@ export default function PrintGtinLabel() {
     try {
       const settings = getSettings()
 
-      // Generate QR code as base64 PNG (error-correction L = smallest)
+      // Generate QR code as base64 PNG (error-correction L = most compact)
       const dataUrl = await QRCode.toDataURL(gtin, {
         errorCorrectionLevel: 'L',
         margin: 0,
