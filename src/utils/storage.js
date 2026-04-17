@@ -201,6 +201,13 @@ export function saveSettings(settings) {
 export function getGtinMap()      { return load(KEYS.GTIN_MAP, {}) }
 export function saveGtinMap(map)  { save(KEYS.GTIN_MAP, map) }
 export function findByGtin(gtin)  { return getGtinMap()[gtin.trim()] || null }
+/** Reverse lookup: itemCode → GTIN (first match) */
+export function findGtinByCode(itemCode) {
+  const entry = Object.entries(getGtinMap()).find(
+    ([, code]) => code.toUpperCase() === itemCode.trim().toUpperCase()
+  )
+  return entry ? entry[0] : null
+}
 
 // ── DATA SOURCE PATHS ─────────────────────────────────────────────────────────
 export function getDataPaths() {

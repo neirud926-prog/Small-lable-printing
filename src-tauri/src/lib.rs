@@ -193,6 +193,130 @@ Write-Host "OK: label sent to $($script:d.printerName)"
     template.replace("DATA_FILE", data_file)
 }
 
+// ── GTIN label (QR code) print script ────────────────────────────────────────
+
+fn build_ps_gtin_label_script(data_path: &str) -> String {
+    format!(
+        r#"
+Add-Type -AssemblyName System.Drawing
+$d = Get-Content '{data_path}' | ConvertFrom-Json
+
+$pd = New-Object System.Drawing.Printing.PrintDocument
+$pd.PrinterSettings.PrinterName = $d.printerName
+if (-not $pd.PrinterSettings.IsValid) {{
+    throw "Printer '$($d.printerName)' not found or inaccessible. Check Settings -> Thermal Printer."
+}}
+
+$w100 = [int]([double]$d.widthMm  / 25.4 * 100)
+$h100 = [int]([double]$d.heightMm / 25.4 * 100)
+$pd.DefaultPageSettings.PaperSize = New-Object System.Drawing.Printing.PaperSize("Custom", $w100, $h100)
+$pd.DefaultPageSettings.Landscape = $false
+$pd.DefaultPageSettings.Margins   = New-Object System.Drawing.Printing.Margins(0,0,0,0)
+
+$pd.add_PrintPage({{
+    param($sender, $e)
+    $g = $e.Graphics
+    $g.PageUnit = [System.Drawing.GraphicsUnit]::Millimeter
+
+    $w = [double]$d.widthMm
+    $h = [double]$d.heightMm
+
+    # Decode base64 PNG -> Image
+    $imgBytes = [Convert]::FromBase64String($d.imageBase64)
+    $ms  = New-Object System.IO.MemoryStream(,$imgBytes)
+    $img = [System.Drawing.Image]::FromStream($ms)
+
+    # Layout: QR code square centred, bottom 4.5 mm for item code text
+    $pad      = 0.5
+    $textH    = 4.5
+    $codeSize = $h - $textH - $pad * 2
+    if ($codeSize -gt ($w - $pad * 2)) {{ $codeSize = $w - $pad * 2 }}
+    $codeX = ($w - $codeSize) / 2
+    $codeY = $pad
+
+    $e.Graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+    $g.DrawImage($img, [float]$codeX, [float]$codeY, [float]$codeSize, [float]$codeSize)
+    $img.Dispose(); $ms.Dispose()
+
+    # Item code centred below the QR code in 5 pt Arial
+    $font  = New-Object System.Drawing.Font("Arial", 5, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
+    $brush = [System.Drawing.Brushes]::Black
+    $sz    = $g.MeasureString($d.itemCode, $font)
+    $tx    = ($w - $sz.Width) / 2
+    $ty    = $codeY + $codeSize + 0.5
+    $g.DrawString($d.itemCode, $font, $brush, [float]$tx, [float]$ty)
+    $font.Dispose()
+}})
+
+$pd.Print()
+$pd.Dispose()
+Write-Host "OK: GTIN label sent to $($d.printerName)"
+"#,
+        data_path = data_path
+    )
+}
+
+/// Print a single QR-code GTIN label silently via PowerShell + System.Drawing.
+/// The caller passes a base64-encoded PNG of the QR code; this function renders
+/// it onto the label together with the item code text (5 pt, centred).
+#[command]
+fn print_gtin_label(
+    image_base64: String,
+    item_code: String,
+    printer_name: String,
+    width_mm: f64,
+    height_mm: f64,
+) -> Result<(), String> {
+    let _lock = PRINT_LOCK
+        .lock()
+        .map_err(|_| "Print queue error: lock poisoned".to_string())?;
+
+    let data = serde_json::json!({
+        "imageBase64": image_base64,
+        "itemCode":    item_code,
+        "printerName": printer_name,
+        "widthMm":     width_mm,
+        "heightMm":    height_mm,
+    });
+
+    let temp_dir   = std::env::temp_dir();
+    let data_path  = temp_dir.join("sml_gtin_data.json");
+    let script_path = temp_dir.join("sml_gtin_print.ps1");
+
+    std::fs::write(&data_path, data.to_string().as_bytes())
+        .map_err(|e| format!("Failed to write GTIN print data: {}", e))?;
+
+    let data_path_fwd = data_path
+        .to_str()
+        .unwrap_or("")
+        .replace('\\', "/");
+
+    let script = build_ps_gtin_label_script(&data_path_fwd);
+    std::fs::write(&script_path, script.as_bytes())
+        .map_err(|e| format!("Failed to write GTIN print script: {}", e))?;
+
+    let out = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path.to_str().unwrap_or(""),
+        ])
+        .output()
+        .map_err(|e| format!("Failed to launch PowerShell: {}", e))?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("GTIN label print error: {}", detail));
+    }
+
+    Ok(())
+}
+
 // ── Commands ──────────────────────────────────────────────────────────────────
 
 /// Return a list of all printer names installed on this Windows machine.
@@ -533,6 +657,7 @@ pub fn run() {
             query_gtin_db,
             print_label_html,
             print_label_powershell,
+            print_gtin_label,
             list_printers
         ])
         .run(tauri::generate_context!())
