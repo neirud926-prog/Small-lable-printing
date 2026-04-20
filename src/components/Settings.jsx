@@ -128,16 +128,12 @@ export default function Settings({ navigate }) {
   }
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <button className="btn btn-back" onClick={() => navigate('menu')}>‹</button>
-        <h1>Settings</h1>
-        <button className="btn btn-primary btn-sm" onClick={handleSave} style={{ marginLeft: 'auto' }}>
-          {saved ? '✓ Saved' : 'Save'}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary btn-sm" onClick={handleSave}>
+          {saved ? '✓ Saved' : 'Save settings'}
         </button>
       </div>
-
-      <div className="page-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Data connection status */}
         {(() => {
@@ -482,7 +478,6 @@ export default function Settings({ navigate }) {
           </AnimatePresence>
         </div>
 
-      </div>
     </div>
   )
 }
