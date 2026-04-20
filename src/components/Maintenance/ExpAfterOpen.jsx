@@ -62,13 +62,7 @@ export default function ExpAfterOpen({ navigate }) {
   )
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <button className="btn btn-back" onClick={() => navigate('maintenance')}>‹</button>
-        <h1>Short Exp After Opening</h1>
-      </div>
-
-      <div className="page-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* Info */}
         <div className="card" style={{ borderLeft: '4px solid var(--primary)', padding: '10px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
@@ -166,7 +160,6 @@ export default function ExpAfterOpen({ navigate }) {
             </div>
           )}
         </div>
-      </div>
     </div>
   )
 }
