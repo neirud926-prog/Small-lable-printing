@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import MainMenu from './components/MainMenu'
+import AppShell from './components/AppShell'
+import DrugEnquiry from './components/DrugEnquiry'
 import SmallLabelPrint from './components/SmallLabelPrint'
-import Reconciliation from './components/Reconciliation/index'
+import Reconstitution from './components/Reconstitution/index'
 import Maintenance from './components/Maintenance/index'
 import EV54Tools from './components/EV54Tools/index'
 import Settings from './components/Settings'
@@ -18,7 +19,7 @@ const pageVariants = {
 }
 
 export default function App() {
-  const [view,        setView]        = useState('menu')
+  const [view,        setView]        = useState('enquiry')
   const [connected,   setConnected]   = useState(false)
   const [loading,     setLoading]     = useState(true)    // while tryRestore() runs
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
@@ -137,45 +138,38 @@ export default function App() {
     return <FileConnect onConnected={() => setConnected(true)} />
   }
 
-  // ── Main app ───────────────────────────────────────────────────────────────
+  // ── Main app (AppShell wraps all destinations) ─────────────────────────────
   const renderView = () => {
     switch (view) {
-      case 'menu':           return <MainMenu       navigate={navigate} key="menu" />
-      case 'smalllabel':     return <SmallLabelPrint navigate={navigate} key="smalllabel" />
-      case 'reconciliation': return <Reconciliation  navigate={navigate} key="reconciliation" />
-      case 'maintenance':    return <Maintenance     navigate={navigate} key="maintenance" />
-      case 'ev54tools':      return <EV54Tools       navigate={navigate} key="ev54tools" />
-      case 'settings':       return <Settings        navigate={navigate} key="settings" />
-      default:               return <MainMenu       navigate={navigate} key="menu" />
+      case 'enquiry':        return <DrugEnquiry      navigate={navigate} key="enquiry" />
+      case 'smalllabel':     return <SmallLabelPrint  navigate={navigate} key="smalllabel" />
+      case 'reconstitution': return <Reconstitution   navigate={navigate} key="reconstitution" />
+      case 'maintenance':    return <Maintenance      navigate={navigate} key="maintenance" />
+      case 'ev54tools':      return <EV54Tools        navigate={navigate} key="ev54tools" />
+      case 'settings':       return <Settings         navigate={navigate} key="settings" />
+      default:               return <DrugEnquiry      navigate={navigate} key="enquiry" />
     }
   }
 
   return (
-    <div className="app-shell">
-
+    <AppShell view={view} onNav={navigate}>
       {/* Silent-print error banner */}
       <AnimatePresence>
         {printError && (
           <motion.div
-            initial={{ y: -48, opacity: 0 }}
+            initial={{ y: -12, opacity: 0 }}
             animate={{ y: 0,   opacity: 1 }}
-            exit={{   y: -48, opacity: 0 }}
+            exit={{   y: -12, opacity: 0 }}
             style={{
-              position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10000,
-              background: '#dc2626', color: '#fff',
-              padding: '10px 16px',
+              marginBottom: 14,
+              background: 'var(--danger-bg)', color: 'var(--danger)',
+              padding: '10px 14px', borderRadius: 10, border: '1px solid var(--danger)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               fontSize: 13, gap: 12,
             }}
           >
             <span>Print error: {printError}</span>
-            <button
-              className="btn btn-sm"
-              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
-              onClick={() => setPrintError(null)}
-            >
-              Dismiss
-            </button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setPrintError(null)}>Dismiss</button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -184,33 +178,21 @@ export default function App() {
       <AnimatePresence>
         {remoteAlert && (
           <motion.div
-            initial={{ y: -48, opacity: 0 }}
+            initial={{ y: -12, opacity: 0 }}
             animate={{ y: 0,   opacity: 1 }}
-            exit={{   y: -48, opacity: 0 }}
+            exit={{   y: -12, opacity: 0 }}
             style={{
-              position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
-              background: 'var(--primary)', color: '#fff',
-              padding: '10px 16px',
+              marginBottom: 14,
+              background: 'var(--info-bg)', color: 'var(--info)',
+              padding: '10px 14px', borderRadius: 10, border: '1px solid var(--info)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               fontSize: 13, gap: 12,
             }}
           >
-            <span>🔄 Data was updated by another PC.</span>
+            <span>Data was updated by another PC.</span>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn btn-sm"
-                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
-                onClick={() => window.location.reload()}
-              >
-                Reload now
-              </button>
-              <button
-                className="btn btn-sm"
-                style={{ background: 'transparent', color: 'rgba(255,255,255,0.7)', border: 'none' }}
-                onClick={() => setRemoteAlert(false)}
-              >
-                Dismiss
-              </button>
+              <button className="btn btn-sm btn-primary" onClick={() => window.location.reload()}>Reload now</button>
+              <button className="btn btn-sm btn-ghost"   onClick={() => setRemoteAlert(false)}>Dismiss</button>
             </div>
           </motion.div>
         )}
@@ -223,11 +205,10 @@ export default function App() {
           initial="initial"
           animate="animate"
           exit="exit"
-          style={{ width: '100%', minHeight: '100vh' }}
         >
           {renderView()}
         </motion.div>
       </AnimatePresence>
-    </div>
+    </AppShell>
   )
 }

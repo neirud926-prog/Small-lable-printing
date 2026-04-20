@@ -237,27 +237,29 @@ export default function SmallLabelPrint({ navigate }) {
   }
 
   return (
-    <div className="page">
+    <div>
       {showIPOP && <IPOPModal onSelect={handleIPOPSelect} />}
 
-      <div className="page-header">
-        <button className="btn btn-back" onClick={() => navigate('menu')}>‹</button>
-        <h1>Small Label Print</h1>
-        {success && (
-          <motion.span
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ color: 'var(--success)', fontWeight: 700, fontSize: 14 }}
-          >
-            ✓ Printed!
-          </motion.span>
-        )}
-      </div>
+      {success && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          style={{
+            marginBottom: 14,
+            background: 'var(--success-bg)', color: 'var(--success)',
+            padding: '8px 12px', borderRadius: 8,
+            font: '600 13px var(--font)',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+          }}
+        >
+          ✓ Label printed
+        </motion.div>
+      )}
 
-      <div className="page-body">
+      <div>
         {/* Tabs */}
-        <div className="tabs mb-12">
+        <div className="tabs mb-12" style={{ display: 'inline-flex', width: 'auto' }}>
           <button className={`tab-btn ${tab === 'standard' ? 'active' : ''}`} onClick={() => { setTab('standard'); clearLabel(); }}>
             Standard Label
           </button>

@@ -49,7 +49,7 @@ export default function ExpiryRules() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="empty-state">No expiry rules. Add rules to enable expiry calculations in Reconciliation.</div>
+          <div className="empty-state">No expiry rules. Add rules to enable expiry calculations in Reconstitution.</div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table">
