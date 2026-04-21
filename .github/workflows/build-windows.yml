@@ -74,12 +74,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
 
-          # NSIS installer → SmallLabelPrinting.exe (user-facing installer)
+          # NSIS installer → RxStation.exe (user-facing installer)
           $nsis = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis" `
                     -Filter "*.exe" -ErrorAction SilentlyContinue |
                     Select-Object -First 1
           if ($nsis) {
-            Copy-Item $nsis.FullName "release\SmallLabelPrinting.exe" -Force
+            Copy-Item $nsis.FullName "release\RxStation.exe" -Force
             Write-Host "Copied NSIS installer: $($nsis.Name)  ($([math]::Round($nsis.Length/1MB, 1)) MB)"
           } else {
             Write-Warning "NSIS installer not found under src-tauri\target\release\bundle\nsis\"
@@ -105,7 +105,7 @@ jobs:
         with:
           name: windows-installers
           path: |
-            release/SmallLabelPrinting.exe
+            release/RxStation.exe
             release/*.msi
           retention-days: 30
 
