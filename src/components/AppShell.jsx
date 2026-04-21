@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import Icon from './Icon'
 import logo from '../assets/logo-nlth.jpg'
 
@@ -33,7 +33,15 @@ const SUBTITLE = {
 }
 
 export default function AppShell({ view, onNav, children, onGlobalSearch }) {
+  const searchRef = useRef(null)
   const crumb = CRUMB[view] || CRUMB.enquiry
+
+  useEffect(() => {
+    const focus = () => { searchRef.current?.focus(); searchRef.current?.select() }
+    window.addEventListener('sml:focus-search', focus)
+    return () => window.removeEventListener('sml:focus-search', focus)
+  }, [])
+
   return (
     <div className="app-layout">
       <aside className="rail">
@@ -77,9 +85,15 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           <div className="topbar-search">
             <Icon name="search" size={14} />
             <input
+              ref={searchRef}
               placeholder="Search drug, item code, GTIN…"
               onKeyDown={e => {
-                if (e.key === 'Enter' && onGlobalSearch) onGlobalSearch(e.currentTarget.value)
+                if (e.key === 'Enter' && onGlobalSearch) {
+                  onGlobalSearch(e.currentTarget.value)
+                  e.currentTarget.value = ''
+                  e.currentTarget.blur()
+                }
+                if (e.key === 'Escape') { e.currentTarget.value = ''; e.currentTarget.blur() }
               }}
             />
             <kbd>⌘K</kbd>

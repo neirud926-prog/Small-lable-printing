@@ -25,6 +25,7 @@ export default function App() {
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
   const [needReconnect, setNeedReconnect] = useState(false) // had file, lost permission
   const [printError,  setPrintError]  = useState(null)    // silent print failure message
+  const [globalSearch, setGlobalSearch] = useState('')
 
   // On mount: auto-connect using the best available storage
   useEffect(() => {
@@ -66,6 +67,33 @@ export default function App() {
   }, [])
 
   const navigate = (page) => setView(page)
+
+  const handleGlobalSearch = (q) => {
+    setGlobalSearch(q)
+    setView('enquiry')
+  }
+
+  // Global keyboard shortcuts: ⌘K/Ctrl+K → focus topbar search; F1-F3 → navigate
+  useEffect(() => {
+    const handler = (e) => {
+      // Don't fire inside <input>, <textarea>, <select>
+      const tag = document.activeElement?.tagName
+      const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        window.dispatchEvent(new CustomEvent('sml:focus-search'))
+        return
+      }
+      if (!inField) {
+        if (e.key === 'F1') { e.preventDefault(); setView('smalllabel') }
+        if (e.key === 'F2') { e.preventDefault(); setView('reconstitution') }
+        if (e.key === 'F3') { e.preventDefault(); setView('ev54tools') }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   // ── Loading splash ─────────────────────────────────────────────────────────
   if (loading) {
@@ -141,7 +169,7 @@ export default function App() {
   // ── Main app (AppShell wraps all destinations) ─────────────────────────────
   const renderView = () => {
     switch (view) {
-      case 'enquiry':        return <DrugEnquiry      navigate={navigate} key="enquiry" />
+      case 'enquiry':        return <DrugEnquiry      navigate={navigate} key="enquiry" initialQuery={globalSearch} />
       case 'smalllabel':     return <SmallLabelPrint  navigate={navigate} key="smalllabel" />
       case 'reconstitution': return <Reconstitution   navigate={navigate} key="reconstitution" />
       case 'maintenance':    return <Maintenance      navigate={navigate} key="maintenance" />
@@ -152,7 +180,7 @@ export default function App() {
   }
 
   return (
-    <AppShell view={view} onNav={navigate}>
+    <AppShell view={view} onNav={navigate} onGlobalSearch={handleGlobalSearch}>
       {/* Silent-print error banner */}
       <AnimatePresence>
         {printError && (

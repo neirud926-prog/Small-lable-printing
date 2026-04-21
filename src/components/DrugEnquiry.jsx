@@ -2,8 +2,13 @@ import React, { useMemo, useState } from 'react'
 import { getDrugs, getItemLocation, getGtinMap, getExpAfterOpenDays } from '../utils/storage'
 import Icon from './Icon'
 
-export default function DrugEnquiry() {
-  const [q, setQ] = useState('')
+export default function DrugEnquiry({ initialQuery = '' }) {
+  const [q, setQ] = useState(initialQuery)
+
+  // Sync when App.jsx pushes a new search from the topbar
+  React.useEffect(() => {
+    if (initialQuery) setQ(initialQuery)
+  }, [initialQuery])
 
   const drugs = useMemo(() => getDrugs(), [])
   const gtinMap = useMemo(() => {
