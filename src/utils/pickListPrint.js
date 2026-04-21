@@ -73,9 +73,9 @@ export function buildPickListHTML(rows, meta) {
     const mobile = (r.mobileBin || '').trim()
     const shelf  = (r.location  || '').trim()
     let locCell = '—'
-    if (mobile && shelf)      locCell = `<span class="mobile">Mobile ${escapeHtml(mobile)}</span> / Shelf ${escapeHtml(shelf)}`
-    else if (mobile)          locCell = `<span class="mobile">Mobile ${escapeHtml(mobile)}</span>`
-    else if (shelf)           locCell = `Shelf ${escapeHtml(shelf)}`
+    if (mobile && shelf)      locCell = `<span class="mobile">${escapeHtml(mobile)}</span> / ${escapeHtml(shelf)}`
+    else if (mobile)          locCell = `<span class="mobile">${escapeHtml(mobile)}</span>`
+    else if (shelf)           locCell = escapeHtml(shelf)
     return `
     <tr>
       <td class="num">${i + 1}</td>
