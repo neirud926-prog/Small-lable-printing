@@ -1,6 +1,14 @@
 import React from 'react'
 import Icon from './Icon'
 import logo from '../assets/logo-nlth.jpg'
+import { getSettings } from '../utils/storage'
+
+// Nav ids whose visibility is controlled by feature flags.
+const NAV_FLAG = {
+  smalllabel:     'enableSmallLabel',
+  reconstitution: 'enableReconstitution',
+  ev54tools:      'enableEV54Tools',
+}
 
 const NAV = [
   { id: 'enquiry',    label: 'Drug Enquiry',      icon: 'search',     badge: '⌘K' },
@@ -34,6 +42,23 @@ const SUBTITLE = {
 
 export default function AppShell({ view, onNav, children, onGlobalSearch }) {
   const crumb = CRUMB[view] || CRUMB.enquiry
+  const settings = getSettings()
+
+  // Hide nav items whose feature flag is disabled. Always keep section headers
+  // for now (visually harmless if a whole section becomes empty).
+  const visibleNav = NAV.filter(n => {
+    if (n.section) return true
+    const flag = NAV_FLAG[n.id]
+    return !flag || settings[flag] !== false
+  })
+
+  // If the current view was disabled from under us, fall back to Drug Enquiry.
+  const flag = NAV_FLAG[view]
+  if (flag && settings[flag] === false) {
+    // defer to avoid setState-during-render in the parent
+    setTimeout(() => onNav('enquiry'), 0)
+  }
+
   return (
     <div className="app-layout">
       <aside className="rail">
@@ -42,7 +67,7 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           <div className="rail-word">RxStation <span>· NLTH</span></div>
         </div>
         <nav className="rail-nav">
-          {NAV.map((n, i) => n.section
+          {visibleNav.map((n, i) => n.section
             ? <div key={i} className="rail-section">{n.section}</div>
             : (
               <button

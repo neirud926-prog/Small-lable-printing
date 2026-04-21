@@ -226,11 +226,19 @@ $pd.add_PrintPage({{
     $ms  = New-Object System.IO.MemoryStream(,$imgBytes)
     $img = [System.Drawing.Image]::FromStream($ms)
 
-    # Layout: QR code square centred, bottom 4.5 mm for item code text
-    $pad      = 0.5
-    $textH    = 4.5
-    $codeSize = $h - $textH - $pad * 2
-    if ($codeSize -gt ($w - $pad * 2)) {{ $codeSize = $w - $pad * 2 }}
+    # Layout: QR code square, item code text below.
+    # Text-row height derived from the configured font size: pt → mm (1 pt ≈ 0.353 mm) × line-height.
+    $pad          = 0.5
+    $itemFontPt   = [double]$d.itemCodeFontPt
+    $textH        = $itemFontPt * 0.353 * 2.2
+    $qrReq        = [double]$d.qrSizeMm
+
+    if ($qrReq -gt 0) {{
+        $codeSize = $qrReq
+    }} else {{
+        $codeSize = $h - $textH - $pad * 2
+        if ($codeSize -gt ($w - $pad * 2)) {{ $codeSize = $w - $pad * 2 }}
+    }}
     $codeX = ($w - $codeSize) / 2
     $codeY = $pad
 
@@ -238,8 +246,8 @@ $pd.add_PrintPage({{
     $g.DrawImage($img, [float]$codeX, [float]$codeY, [float]$codeSize, [float]$codeSize)
     $img.Dispose(); $ms.Dispose()
 
-    # Item code centred below the QR code in 5 pt Arial
-    $font  = New-Object System.Drawing.Font("Arial", 5, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
+    # Item code centred below the QR code in the configured font size.
+    $font  = New-Object System.Drawing.Font("Arial", [float]$itemFontPt, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Point)
     $brush = [System.Drawing.Brushes]::Black
     $sz    = $g.MeasureString($d.itemCode, $font)
     $tx    = ($w - $sz.Width) / 2
@@ -266,17 +274,21 @@ fn print_gtin_label(
     printer_name: String,
     width_mm: f64,
     height_mm: f64,
+    qr_size_mm: f64,          // 0 = auto (fill label height minus text row)
+    item_code_font_pt: f64,   // item code text point size (default 5)
 ) -> Result<(), String> {
     let _lock = PRINT_LOCK
         .lock()
         .map_err(|_| "Print queue error: lock poisoned".to_string())?;
 
     let data = serde_json::json!({
-        "imageBase64": image_base64,
-        "itemCode":    item_code,
-        "printerName": printer_name,
-        "widthMm":     width_mm,
-        "heightMm":    height_mm,
+        "imageBase64":    image_base64,
+        "itemCode":       item_code,
+        "printerName":    printer_name,
+        "widthMm":        width_mm,
+        "heightMm":       height_mm,
+        "qrSizeMm":       qr_size_mm,
+        "itemCodeFontPt": item_code_font_pt,
     });
 
     let temp_dir   = std::env::temp_dir();

@@ -54,6 +54,8 @@ export default function PrintGtinLabel() {
           printerName: settings.printerName || 'Thermal GX420t - PMS',
           widthMm:  settings.labelWidth  || 34.4,
           heightMm: settings.labelHeight || 25,
+          qrSizeMm:       settings.gtinQrSizeMm        || 0,   // 0 = auto
+          itemCodeFontPt: settings.gtinItemCodeFontSize || 5,
         })
       }
 
