@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" font-family="'Segoe UI', Arial, sans-serif">
+  <rect x="0" y="0" width="1000" height="620" fill="#F6F5F2"/>
+
+  <text x="40" y="40" font-size="22" font-weight="700" fill="#2E2B26">Settings</text>
+  <text x="40" y="60" font-size="12" fill="#7C7669">Printer, fonts, data sources, and PIN.</text>
+
+  <!-- Tabs -->
+  <rect x="40" y="78" width="240" height="36" rx="10" fill="#F2F0EB"/>
+  <rect x="44" y="82" width="110" height="28" rx="8" fill="#FFFFFF" stroke="#EAE7E0"/>
+  <text x="99" y="100" font-size="12" fill="#2E2B26" font-weight="700" text-anchor="middle">General</text>
+  <text x="220" y="100" font-size="12" fill="#7C7669" font-weight="500" text-anchor="middle">Admin 🔒</text>
+
+  <!-- Data Connection card -->
+  <rect x="40" y="128" width="920" height="80" rx="12" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <rect x="60" y="148" width="44" height="44" rx="8" fill="#E4EFE7"/>
+  <text x="82" y="176" font-size="20" text-anchor="middle" fill="#3F7D5C" font-weight="700">✓</text>
+  <text x="120" y="162" font-size="14" font-weight="700" fill="#2E2B26">Auto-save Active (Tauri)</text>
+  <text x="120" y="184" font-size="11" fill="#7C7669">%APPDATA%\RxStation\small-label-data.json</text>
+
+  <!-- Data Sources section -->
+  <text x="40" y="236" font-size="15" font-weight="700" fill="#2E2B26">📂 Data Sources</text>
+  <text x="40" y="254" font-size="11" fill="#7C7669">Paths are loaded on startup and when you click Refresh Now.</text>
+
+  <rect x="40" y="268" width="920" height="290" rx="12" fill="#FFFFFF" stroke="#DDD9D0"/>
+
+  <text x="60" y="296" font-size="12" fill="#5E5A50" font-weight="600">PHQ Drug List (.txt)</text>
+  <rect x="60" y="304" width="720" height="30" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+  <text x="72" y="324" font-size="11" fill="#2E2B26">\\nltpha-nas01\PharmShare\Drugs\PHQ.txt</text>
+  <rect x="790" y="304" width="90" height="30" rx="6" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="835" y="324" font-size="12" fill="#5E5A50" text-anchor="middle">Browse</text>
+
+  <text x="60" y="354" font-size="12" fill="#5E5A50" font-weight="600">Item Location (.xls)</text>
+  <rect x="60" y="362" width="720" height="30" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+  <text x="72" y="382" font-size="11" fill="#2E2B26">\\nltpha-nas01\PharmShare\…\ItemLocationXls.xls</text>
+  <rect x="790" y="362" width="90" height="30" rx="6" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="835" y="382" font-size="12" fill="#5E5A50" text-anchor="middle">Browse</text>
+
+  <text x="60" y="412" font-size="12" fill="#5E5A50" font-weight="600">Mobile Shelf (.xls/.xlsx)</text>
+  <rect x="60" y="420" width="720" height="30" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+  <text x="72" y="440" font-size="11" fill="#C5C0B5">(empty)</text>
+  <rect x="790" y="420" width="90" height="30" rx="6" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="835" y="440" font-size="12" fill="#5E5A50" text-anchor="middle">Browse</text>
+
+  <text x="60" y="470" font-size="12" fill="#5E5A50" font-weight="600">GTIN Database (.accdb)</text>
+  <rect x="60" y="478" width="720" height="30" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+  <text x="72" y="498" font-size="11" fill="#2E2B26">\\nltpha-nas01\PharmShare\…\Replenishment.accdb</text>
+  <rect x="790" y="478" width="90" height="30" rx="6" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="835" y="498" font-size="12" fill="#5E5A50" text-anchor="middle">Browse</text>
+
+  <!-- Refresh Now -->
+  <rect x="60" y="520" width="150" height="36" rx="8" fill="#8AA380"/>
+  <text x="135" y="544" font-size="13" fill="#FFFFFF" font-weight="700" text-anchor="middle">🔄 Refresh Now</text>
+  <text x="226" y="544" font-size="12" fill="#3F7D5C" font-weight="600">✓ All sources loaded</text>
+
+  <!-- Callouts -->
+  <g stroke="#E53935" stroke-width="2.2" fill="none">
+    <rect x="56" y="290" width="824" height="52" rx="11"/>
+    <rect x="56" y="516" width="158" height="44" rx="11"/>
+  </g>
+  <g font-weight="700" font-size="15" fill="#FFFFFF" text-anchor="middle">
+    <circle cx="40" cy="314" r="14" fill="#E53935"/><text x="40" y="319">1</text>
+    <circle cx="40" cy="538" r="14" fill="#E53935"/><text x="40" y="543">2</text>
+  </g>
+</svg>
