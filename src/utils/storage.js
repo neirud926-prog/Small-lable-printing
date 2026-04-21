@@ -188,8 +188,19 @@ export function getSettings() {
     // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
     barcodeMethod:   'gs1',
     // EV54 pick list: when true, reject codes not in the EV54 Drugs table.
-    // Default false while the EV54 Drugs data is still being prepared.
     restrictToEV54List: false,
+    // GTIN QR label sizing (Settings → General → GTIN QR Label)
+    gtinQrSizeMm:         0,    // 0 = auto-fill; positive = fixed mm
+    gtinItemCodeFontSize: 5,    // pt, item code text below QR code
+    // Feature flags (Settings → Admin) — all enabled by default
+    enableSmallLabel:      true,
+    enableReconstitution:  true,
+    enableEV54Tools:       true,
+    enableAbxTab:          true,
+    enableExtempTab:       true,
+    enablePrepackTab:      true,
+    enablePickListTab:     true,
+    enableGtinLabelTab:    true,
   })
 }
 export function saveSettings(settings) {
