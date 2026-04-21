@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 540" font-family="'Segoe UI', Arial, sans-serif">
+  <rect x="0" y="0" width="1000" height="540" fill="#F6F5F2"/>
+
+  <text x="40" y="40" font-size="22" font-weight="700" fill="#2E2B26">EV54 Tools</text>
+  <text x="40" y="60" font-size="12" fill="#7C7669">Refill the EV54 dispensing robot with printed pick-lists.</text>
+
+  <rect x="40" y="76" width="400" height="36" rx="10" fill="#F2F0EB"/>
+  <text x="129" y="98" font-size="12" fill="#7C7669" text-anchor="middle">Print Pick List</text>
+  <rect x="218" y="80" width="180" height="28" rx="8" fill="#FFFFFF" stroke="#EAE7E0"/>
+  <text x="308" y="98" font-size="12" fill="#2E2B26" font-weight="600" text-anchor="middle">Print GTIN Label</text>
+
+  <rect x="40" y="128" width="920" height="380" rx="12" fill="#FFFFFF" stroke="#DDD9D0"/>
+
+  <text x="66" y="162" font-size="12" fill="#5E5A50" font-weight="600">Item Code</text>
+  <rect x="66" y="170" width="300" height="36" rx="8" fill="#FFFFFF" stroke="#C5C0B5" stroke-width="1.5"/>
+  <text x="80" y="194" font-size="14" font-weight="600" fill="#2E2B26">PARA05</text>
+
+  <text x="400" y="162" font-size="12" fill="#5E5A50" font-weight="600">Quantity</text>
+  <rect x="400" y="170" width="100" height="36" rx="8" fill="#FFFFFF" stroke="#C5C0B5" stroke-width="1.5"/>
+  <text x="414" y="194" font-size="14" fill="#2E2B26">1</text>
+
+  <rect x="520" y="170" width="100" height="36" rx="8" fill="#8AA380"/>
+  <text x="570" y="194" font-size="14" fill="#FFFFFF" font-weight="700" text-anchor="middle">Print</text>
+
+  <!-- Lookup result -->
+  <rect x="66" y="234" width="560" height="240" rx="10" fill="#FAF9F6" stroke="#EAE7E0"/>
+  <text x="84" y="262" font-size="11" fill="#7C7669">LOOKUP RESULT</text>
+  <text x="84" y="288" font-size="16" font-weight="700" fill="#2E2B26">PARACETAMOL 500MG TAB</text>
+  <text x="84" y="312" font-size="12" fill="#5E5A50">Item Code: <tspan font-weight="700" fill="#2E2B26">PARA05</tspan></text>
+  <text x="84" y="332" font-size="12" fill="#5E5A50">GTIN: <tspan font-family="'Courier New', monospace" font-weight="700" fill="#2E2B26">04891266047151</tspan></text>
+  <rect x="84" y="344" width="80" height="24" rx="12" fill="#E4EFE7"/>
+  <text x="124" y="360" font-size="11" fill="#3F7D5C" font-weight="700" text-anchor="middle">● Ready</text>
+
+  <!-- QR preview -->
+  <rect x="660" y="234" width="260" height="240" rx="10" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="680" y="260" font-size="11" fill="#7C7669">LABEL PREVIEW</text>
+  <!-- fake QR code -->
+  <g fill="#2E2B26">
+    <rect x="720" y="280" width="12" height="12"/><rect x="732" y="280" width="12" height="12"/><rect x="756" y="280" width="12" height="12"/>
+    <rect x="780" y="280" width="12" height="12"/><rect x="804" y="280" width="12" height="12"/><rect x="828" y="280" width="12" height="12"/>
+    <rect x="720" y="292" width="12" height="12"/><rect x="744" y="292" width="12" height="12"/><rect x="768" y="292" width="12" height="12"/>
+    <rect x="792" y="292" width="12" height="12"/><rect x="816" y="292" width="12" height="12"/>
+    <rect x="720" y="304" width="12" height="12"/><rect x="756" y="304" width="12" height="12"/><rect x="780" y="304" width="12" height="12"/><rect x="816" y="304" width="12" height="12"/>
+    <rect x="732" y="316" width="12" height="12"/><rect x="768" y="316" width="12" height="12"/><rect x="792" y="316" width="12" height="12"/><rect x="804" y="316" width="12" height="12"/><rect x="828" y="316" width="12" height="12"/>
+    <rect x="720" y="328" width="12" height="12"/><rect x="744" y="328" width="12" height="12"/><rect x="780" y="328" width="12" height="12"/><rect x="828" y="328" width="12" height="12"/>
+    <rect x="732" y="340" width="12" height="12"/><rect x="756" y="340" width="12" height="12"/><rect x="792" y="340" width="12" height="12"/><rect x="816" y="340" width="12" height="12"/>
+    <rect x="720" y="352" width="12" height="12"/><rect x="744" y="352" width="12" height="12"/><rect x="768" y="352" width="12" height="12"/><rect x="804" y="352" width="12" height="12"/><rect x="828" y="352" width="12" height="12"/>
+  </g>
+  <text x="790" y="396" font-size="13" font-weight="700" fill="#2E2B26" text-anchor="middle">PARA05</text>
+  <text x="790" y="414" font-size="10" fill="#5E5A50" text-anchor="middle" font-family="'Courier New', monospace">04891266047151</text>
+
+  <!-- Callouts -->
+  <g stroke="#E53935" stroke-width="2.2" fill="none">
+    <rect x="62" y="166" width="308" height="44" rx="11"/>
+    <rect x="516" y="166" width="108" height="44" rx="11"/>
+  </g>
+  <g font-weight="700" font-size="15" fill="#FFFFFF" text-anchor="middle">
+    <circle cx="46" cy="188" r="14" fill="#E53935"/><text x="46" y="193">1</text>
+    <circle cx="500" cy="188" r="14" fill="#E53935"/><text x="500" y="193">2</text>
+  </g>
+</svg>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" font-family="'Segoe UI', Arial, sans-serif">
+  <rect x="0" y="0" width="1000" height="620" fill="#F6F5F2"/>
+
+  <text x="40" y="40" font-size="22" font-weight="700" fill="#2E2B26">EV54 Tools</text>
+  <text x="40" y="60" font-size="12" fill="#7C7669">Refill the EV54 dispensing robot with printed pick-lists.</text>
+
+  <rect x="40" y="76" width="400" height="36" rx="10" fill="#F2F0EB"/>
+  <rect x="44" y="80" width="170" height="28" rx="8" fill="#FFFFFF" stroke="#EAE7E0"/>
+  <text x="129" y="98" font-size="12" fill="#2E2B26" font-weight="600" text-anchor="middle">Print Pick List</text>
+  <text x="322" y="98" font-size="12" fill="#7C7669" text-anchor="middle">Print GTIN Label</text>
+
+  <rect x="40" y="128" width="920" height="452" rx="12" fill="#FFFFFF" stroke="#DDD9D0"/>
+
+  <!-- Entry row -->
+  <text x="66" y="158" font-size="12" fill="#5E5A50" font-weight="600">Item Code</text>
+  <rect x="66" y="166" width="160" height="34" rx="8" fill="#FFFFFF" stroke="#C5C0B5" stroke-width="1.5"/>
+  <text x="80" y="188" font-size="13" font-weight="600" fill="#2E2B26">PARA05</text>
+
+  <text x="246" y="158" font-size="12" fill="#5E5A50" font-weight="600">Quantity</text>
+  <rect x="246" y="166" width="100" height="34" rx="8" fill="#FFFFFF" stroke="#C5C0B5" stroke-width="1.5"/>
+  <text x="260" y="188" font-size="13" fill="#2E2B26">10</text>
+
+  <rect x="366" y="166" width="60" height="34" rx="8" fill="#8AA380"/>
+  <text x="396" y="188" font-size="18" fill="#FFFFFF" font-weight="700" text-anchor="middle">+</text>
+
+  <!-- Rows table -->
+  <rect x="66" y="216" width="868" height="280" rx="8" fill="#FAF9F6" stroke="#EAE7E0"/>
+  <rect x="66" y="216" width="868" height="32" rx="8" fill="#F2F0EB"/>
+  <g font-size="11" font-weight="700" fill="#5E5A50">
+    <text x="82" y="236">#</text>
+    <text x="118" y="236">ITEM CODE</text>
+    <text x="232" y="236">DRUG NAME</text>
+    <text x="508" y="236">MOBILE BIN</text>
+    <text x="610" y="236">LOCATION</text>
+    <text x="728" y="236">QTY</text>
+    <text x="840" y="236">DEL</text>
+  </g>
+  <g font-size="12" fill="#2E2B26">
+    <text x="82" y="268">1</text>
+    <text x="118" y="268" font-weight="600">PARA05</text>
+    <text x="232" y="268">PARACETAMOL 500MG TAB</text>
+    <rect x="498" y="254" width="72" height="22" rx="11" fill="#E4EFE7"/>
+    <text x="534" y="269" font-size="11" fill="#3F7D5C" font-weight="700" text-anchor="middle">● B-14</text>
+    <text x="610" y="268">A3-12</text>
+    <rect x="706" y="254" width="60" height="22" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+    <text x="736" y="269" text-anchor="middle">10</text>
+    <text x="852" y="268" fill="#A8443A" font-weight="700">×</text>
+
+    <text x="82" y="302">2</text>
+    <text x="118" y="302" font-weight="600">AUGM06</text>
+    <text x="232" y="302">AUGMENTIN 625MG TAB</text>
+    <rect x="498" y="288" width="72" height="22" rx="11" fill="#E4EFE7"/>
+    <text x="534" y="303" font-size="11" fill="#3F7D5C" font-weight="700" text-anchor="middle">● B-22</text>
+    <text x="610" y="302">B2-08</text>
+    <rect x="706" y="288" width="60" height="22" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+    <text x="736" y="303" text-anchor="middle">6</text>
+    <text x="852" y="302" fill="#A8443A" font-weight="700">×</text>
+
+    <text x="82" y="336">3</text>
+    <text x="118" y="336" font-weight="600">PHEN18</text>
+    <text x="232" y="336">PHENYTOIN 100MG CAP</text>
+    <rect x="498" y="322" width="72" height="22" rx="11" fill="#E4EFE7"/>
+    <text x="534" y="337" font-size="11" fill="#3F7D5C" font-weight="700" text-anchor="middle">● C-08</text>
+    <text x="610" y="336">D4-22</text>
+    <rect x="706" y="322" width="60" height="22" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+    <text x="736" y="337" text-anchor="middle">3</text>
+    <text x="852" y="336" fill="#A8443A" font-weight="700">×</text>
+  </g>
+
+  <!-- Totals -->
+  <text x="66" y="520" font-size="13" fill="#2E2B26" font-weight="700">Totals: <tspan fill="#5E5A50" font-weight="500">3 items · 19 bottles</tspan></text>
+
+  <!-- Prepared by -->
+  <text x="66" y="548" font-size="12" fill="#5E5A50" font-weight="600">Prepared by</text>
+  <rect x="160" y="534" width="200" height="26" rx="6" fill="#FFFFFF" stroke="#C5C0B5"/>
+  <text x="170" y="552" font-size="12" fill="#2E2B26">Nurse Chan</text>
+
+  <!-- Buttons -->
+  <rect x="740" y="532" width="120" height="34" rx="8" fill="#8AA380"/>
+  <text x="800" y="554" font-size="13" fill="#FFFFFF" font-weight="700" text-anchor="middle">Print Pick List</text>
+  <rect x="868" y="532" width="70" height="34" rx="8" fill="#FFFFFF" stroke="#DDD9D0"/>
+  <text x="903" y="554" font-size="12" fill="#5E5A50" font-weight="600" text-anchor="middle">Clear All</text>
+
+  <!-- Callouts -->
+  <g stroke="#E53935" stroke-width="2.2" fill="none">
+    <rect x="62" y="162" width="368" height="42" rx="11"/>
+    <rect x="62" y="212" width="878" height="290" rx="10"/>
+    <rect x="736" y="528" width="128" height="42" rx="10"/>
+  </g>
+  <g font-weight="700" font-size="15" fill="#FFFFFF" text-anchor="middle">
+    <circle cx="46" cy="183" r="14" fill="#E53935"/><text x="46" y="188">1</text>
+    <circle cx="46" cy="355" r="14" fill="#E53935"/><text x="46" y="360">2</text>
+    <circle cx="720" cy="549" r="14" fill="#E53935"/><text x="720" y="554">3</text>
+  </g>
+</svg>
