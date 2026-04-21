@@ -1,17 +1,18 @@
 import React from 'react'
 import Icon from './Icon'
 import logo from '../assets/logo-nlth.jpg'
+import { getSettings } from '../utils/storage'
 
-const NAV = [
-  { id: 'enquiry',    label: 'Drug Enquiry',      icon: 'search',     badge: '⌘K' },
+const ALL_NAV = [
+  { id: 'enquiry',       label: 'Drug Enquiry',      icon: 'search',     badge: '⌘K' },
   { section: 'Work' },
-  { id: 'smalllabel', label: 'Small Label Print', icon: 'tag',        badge: 'F1' },
-  { id: 'reconstitution', label: 'Reconstitution',icon: 'pill',       badge: 'F2' },
-  { id: 'ev54tools',  label: 'EV54 Tools',        icon: 'bot',        badge: 'F3' },
+  { id: 'smalllabel',    label: 'Small Label Print', icon: 'tag',        badge: 'F1', flag: 'enableSmallLabel' },
+  { id: 'reconstitution',label: 'Reconstitution',    icon: 'pill',       badge: 'F2', flag: 'enableReconstitution' },
+  { id: 'ev54tools',     label: 'EV54 Tools',        icon: 'bot',        badge: 'F3', flag: 'enableEV54Tools' },
   { section: 'Data' },
-  { id: 'maintenance',label: 'Maintenance',       icon: 'wrench' },
+  { id: 'maintenance',   label: 'Maintenance',       icon: 'wrench' },
   { section: 'System' },
-  { id: 'settings',   label: 'Settings',          icon: 'settings-2' },
+  { id: 'settings',      label: 'Settings',          icon: 'settings-2' },
 ]
 
 const CRUMB = {
@@ -34,6 +35,8 @@ const SUBTITLE = {
 
 export default function AppShell({ view, onNav, children, onGlobalSearch }) {
   const crumb = CRUMB[view] || CRUMB.enquiry
+  const s = getSettings()
+  const visibleNav = ALL_NAV.filter(n => !n.flag || s[n.flag] !== false)
   return (
     <div className="app-layout">
       <aside className="rail">
@@ -42,7 +45,7 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           <div className="rail-word">RxStation <span>· NLTH</span></div>
         </div>
         <nav className="rail-nav">
-          {NAV.map((n, i) => n.section
+          {visibleNav.map((n, i) => n.section
             ? <div key={i} className="rail-section">{n.section}</div>
             : (
               <button

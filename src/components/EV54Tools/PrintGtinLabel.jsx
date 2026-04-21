@@ -50,10 +50,12 @@ export default function PrintGtinLabel() {
       for (let i = 0; i < quantity; i++) {
         await invoke('print_gtin_label', {
           imageBase64,
-          itemCode: drug.itemCode,
-          printerName: settings.printerName || 'Thermal GX420t - PMS',
-          widthMm:  settings.labelWidth  || 34.4,
-          heightMm: settings.labelHeight || 25,
+          itemCode:       drug.itemCode,
+          printerName:    settings.printerName          || 'Thermal GX420t - PMS',
+          widthMm:        settings.labelWidth           || 34.4,
+          heightMm:       settings.labelHeight          || 25,
+          qrSizeMm:       settings.gtinQrSizeMm         ?? 0,
+          itemCodeFontPt: settings.gtinItemCodeFontSize ?? 5,
         })
       }
 
