@@ -8,8 +8,11 @@ import { autoLoad } from '../utils/dataLoader'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
+import Icon from './Icon'
 
 const LOCATIONS = ['IP/OP', 'EC', 'SM']
+// Separate PIN for the Admin tab. Hardcoded — not in storage.js settings.
+const ADMIN_PIN = 'nlthadmin'
 
 export default function Settings({ navigate }) {
   const [settings, _setSettings] = useState(getSettings)
@@ -20,6 +23,19 @@ export default function Settings({ navigate }) {
   const [dataPaths, setDataPaths] = useState(getDataPaths)
   const [refreshMsg, setRefreshMsg] = useState('')
   const [printers, setPrinters]  = useState([])
+
+  // Settings-level PIN gate (maintenance PIN, same as Maintenance page)
+  const [unlocked, setUnlocked]     = useState(false)
+  const [pagePin, setPagePin]       = useState('')
+  const [pagePinError, setPagePinError] = useState(false)
+
+  // Top-level tab: 'general' or 'admin'
+  const [settingsTab, setSettingsTab] = useState('general')
+
+  // Admin tab PIN gate (separate PIN, hardcoded)
+  const [adminUnlocked, setAdminUnlocked]     = useState(false)
+  const [adminPin, setAdminPin]               = useState('')
+  const [adminPinError, setAdminPinError]     = useState(false)
 
   // Load available printers from the Tauri backend on first render
   useEffect(() => {
@@ -110,6 +126,31 @@ export default function Settings({ navigate }) {
     URL.revokeObjectURL(url)
   }
 
+  const handlePagePinSubmit = (e) => {
+    e.preventDefault()
+    const s = getSettings()
+    if (pagePin === s.maintenancePin) {
+      setUnlocked(true); setPagePinError(false)
+    } else {
+      setPagePinError(true); setPagePin('')
+    }
+  }
+
+  const handleAdminPinSubmit = (e) => {
+    e.preventDefault()
+    if (adminPin === ADMIN_PIN) {
+      setAdminUnlocked(true); setAdminPinError(false)
+    } else {
+      setAdminPinError(true); setAdminPin('')
+    }
+  }
+
+  // Feature-flag toggle — writes immediately to storage (no Save button).
+  const toggleFlag = (key, value) => {
+    _setSettings(s => ({ ...s, [key]: value }))
+    saveSettings({ [key]: value })
+  }
+
   const handleImport = (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -127,14 +168,80 @@ export default function Settings({ navigate }) {
     reader.readAsText(file)
   }
 
+  if (!unlocked) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="ds-card"
+          style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}
+        >
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 48, height: 48, borderRadius: 12, background: 'var(--primary-50)',
+            color: 'var(--primary-700)', marginBottom: 12,
+          }}>
+            <Icon name="lock" size={22} />
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Settings</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
+            Enter your PIN to access settings.
+          </div>
+          <form onSubmit={handlePagePinSubmit}>
+            <input
+              className="form-input"
+              type="password"
+              placeholder="Enter PIN"
+              value={pagePin}
+              onChange={e => setPagePin(e.target.value)}
+              autoFocus
+              style={{ textAlign: 'center', letterSpacing: 4, fontSize: 18, marginBottom: 12 }}
+            />
+            <AnimatePresence>
+              {pagePinError && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1, x: [0, -8, 8, -8, 8, 0] }}
+                  exit={{ opacity: 0 }}
+                  style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}
+                >
+                  Incorrect PIN. Please try again.
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Unlock</button>
+          </form>
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <button className="btn btn-primary btn-sm" onClick={handleSave}>
-          {saved ? '✓ Saved' : 'Save settings'}
-        </button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="tabs" style={{ display: 'inline-flex', width: 'auto' }}>
+          <button
+            className={`tab-btn ${settingsTab === 'general' ? 'active' : ''}`}
+            onClick={() => setSettingsTab('general')}
+          >
+            General
+          </button>
+          <button
+            className={`tab-btn ${settingsTab === 'admin' ? 'active' : ''}`}
+            onClick={() => setSettingsTab('admin')}
+          >
+            Admin
+          </button>
+        </div>
+        {settingsTab === 'general' && (
+          <button className="btn btn-primary btn-sm" onClick={handleSave}>
+            {saved ? '✓ Saved' : 'Save settings'}
+          </button>
+        )}
       </div>
 
+      {settingsTab === 'general' && <>
         {/* Data connection status */}
         {(() => {
           const tauriOk = isTauriConnected()
@@ -427,6 +534,41 @@ export default function Settings({ navigate }) {
           </div>
         </div>
 
+        {/* GTIN QR Label */}
+        <div className="card">
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷 GTIN QR Label</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label">
+                QR Code Size (mm){' '}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(0 = auto)</span>
+              </label>
+              <input
+                className="form-input"
+                type="number"
+                step="0.5"
+                min="0"
+                value={settings.gtinQrSizeMm ?? 0}
+                onChange={e => set('gtinQrSizeMm', parseFloat(e.target.value) || 0)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Item Code Font Size (pt)</label>
+              <input
+                className="form-input"
+                type="number"
+                step="0.5"
+                min="3"
+                value={settings.gtinItemCodeFontSize ?? 5}
+                onChange={e => set('gtinItemCodeFontSize', parseFloat(e.target.value) || 5)}
+              />
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+            Default: QR fills the label automatically · Item code 5 pt Arial
+          </div>
+        </div>
+
         {/* Change PIN */}
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🔒 Change Maintenance PIN</div>
@@ -477,7 +619,124 @@ export default function Settings({ navigate }) {
             )}
           </AnimatePresence>
         </div>
+      </>}
 
+      {settingsTab === 'admin' && (
+        adminUnlocked
+          ? <AdminPanel settings={settings} toggleFlag={toggleFlag} />
+          : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="ds-card"
+                style={{ maxWidth: 360, width: '100%', textAlign: 'center' }}
+              >
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 48, height: 48, borderRadius: 12, background: 'var(--primary-50)',
+                  color: 'var(--primary-700)', marginBottom: 12,
+                }}>
+                  <Icon name="lock" size={22} />
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Admin</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 20 }}>
+                  Enter the admin PIN to toggle pages and sub-tabs.
+                </div>
+                <form onSubmit={handleAdminPinSubmit}>
+                  <input
+                    className="form-input"
+                    type="password"
+                    placeholder="Enter admin PIN"
+                    value={adminPin}
+                    onChange={e => setAdminPin(e.target.value)}
+                    autoFocus
+                    style={{ textAlign: 'center', letterSpacing: 4, fontSize: 18, marginBottom: 12 }}
+                  />
+                  <AnimatePresence>
+                    {adminPinError && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1, x: [0, -8, 8, -8, 8, 0] }}
+                        exit={{ opacity: 0 }}
+                        style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 12 }}
+                      >
+                        Incorrect PIN. Please try again.
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>Unlock</button>
+                </form>
+              </motion.div>
+            </div>
+          )
+      )}
+
+    </div>
+  )
+}
+
+function AdminPanel({ settings, toggleFlag }) {
+  const groups = [
+    {
+      title: '📱 Main Menu Pages',
+      rows: [
+        { key: 'enableSmallLabel',     label: 'Small Label Print' },
+        { key: 'enableReconstitution', label: 'Reconstitution' },
+        { key: 'enableEV54Tools',      label: 'EV54 Tools' },
+      ],
+    },
+    {
+      title: '💊 Reconstitution Tabs',
+      rows: [
+        { key: 'enableAbxTab',     label: 'ABX Preparation' },
+        { key: 'enableExtempTab',  label: 'Extemporaneous' },
+        { key: 'enablePrepackTab', label: 'Prepack' },
+      ],
+    },
+    {
+      title: '🤖 EV54 Tools Tabs',
+      rows: [
+        { key: 'enablePickListTab',  label: 'Print Pick List' },
+        { key: 'enableGtinLabelTab', label: 'Print GTIN Label' },
+      ],
+    },
+  ]
+
+  return (
+    <div className="card">
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>
+        Toggle pages and sub-tabs on or off. Changes save immediately and take effect
+        the next time the user navigates.
+      </div>
+      {groups.map(g => (
+        <div key={g.title} style={{ marginBottom: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{g.title}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {g.rows.map(r => (
+              <label
+                key={r.key}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, fontSize: 13,
+                  cursor: 'pointer', padding: '8px 12px',
+                  borderRadius: 8, border: '1px solid var(--border)',
+                  background: settings[r.key] !== false ? 'var(--primary-light, #eff6ff)' : 'var(--bg)',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={settings[r.key] !== false}
+                  onChange={e => toggleFlag(r.key, e.target.checked)}
+                />
+                <span style={{ fontWeight: 600 }}>{r.label}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>
+                  {settings[r.key] !== false ? 'Enabled' : 'Disabled'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

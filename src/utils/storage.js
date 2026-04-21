@@ -190,6 +190,18 @@ export function getSettings() {
     // EV54 pick list: when true, reject codes not in the EV54 Drugs table.
     // Default false while the EV54 Drugs data is still being prepared.
     restrictToEV54List: false,
+    // GTIN QR label — 0 means auto (fill label height minus text row).
+    gtinQrSizeMm:          0,
+    gtinItemCodeFontSize:  5,
+    // Feature flags — Admin tab in Settings toggles these. All enabled by default.
+    enableSmallLabel:      true,
+    enableReconstitution:  true,
+    enableEV54Tools:       true,
+    enableAbxTab:          true,
+    enableExtempTab:       true,
+    enablePrepackTab:      true,
+    enablePickListTab:     true,
+    enableGtinLabelTab:    true,
   })
 }
 export function saveSettings(settings) {
