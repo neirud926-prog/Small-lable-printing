@@ -1,16 +1,31 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getSettings, saveSettings, exportAllData, importAllData,
-         getDataPaths, saveDataPaths } from '../utils/storage'
+         getDataPaths, saveDataPaths,
+         getComputerProfiles, saveComputerProfiles, getFeatureFlagList, allFlagsTrue, allFlagsFalse } from '../utils/storage'
 import { isConnected as isFileConnected, getFileName, disconnect as fileDisconnect } from '../utils/fileStorage'
 import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
 import { autoLoad } from '../utils/dataLoader'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
+import { useApp } from '../utils/AppContext'
 
 const LOCATIONS  = ['IP/OP', 'EC', 'SM']
 const ADMIN_PIN  = 'nlthadmin'
+
+const FLAG_LABELS = {
+  enableSmallLabel:     'Small Label Print',
+  enableReconstitution: 'Reconstitution',
+  enableEV54Tools:      'EV54 Tools',
+  enableAbxTab:         '· ABX Preparation',
+  enableExtempTab:      '· Extemporaneous',
+  enablePrepackTab:     '· Prepack',
+  enablePickListTab:    '· EV54 Pick List',
+  enableGtinLabelTab:   '· EV54 GTIN Label',
+  enableMaintenance:    'Maintenance page',
+  enableSettings:       'Settings page',
+}
 
 export default function Settings({ navigate }) {
   // ── All hooks first (no hooks after early returns) ─────────────────────────
@@ -29,6 +44,8 @@ export default function Settings({ navigate }) {
   const [dataPaths,     setDataPaths]    = useState(getDataPaths)
   const [refreshMsg,    setRefreshMsg]   = useState('')
   const [printers,      setPrinters]     = useState([])
+  const [profiles,      setProfiles]     = useState(getComputerProfiles)
+  const { computerName, refreshFlags }   = useApp()
 
   useEffect(() => {
     if (!isTauri()) return
@@ -69,6 +86,7 @@ export default function Settings({ navigate }) {
         result.mobileShelfLoaded && 'Mobile Shelf',
         result.ev54DrugsLoaded   && 'EV54 Drugs',
         result.gtinLoaded        && 'GTIN',
+        result.stockOnhandLoaded && 'Stock Onhand',
       ].filter(Boolean)
       const msg = loaded.length
         ? `✓ Refreshed: ${loaded.join(', ')}`
@@ -179,46 +197,115 @@ export default function Settings({ navigate }) {
     }
   }
 
+  // ── Profile editing helpers ────────────────────────────────────────────────
+  const persistProfiles = (next) => {
+    setProfiles(next)
+    saveComputerProfiles(next)
+    refreshFlags()
+  }
+
+  const updateProfileFlag = (name, flag, value) => {
+    const next = { ...profiles, [name]: { ...(profiles[name] || allFlagsFalse()), [flag]: value } }
+    persistProfiles(next)
+  }
+
+  const renameProfile = (oldName, newName) => {
+    const trimmed = (newName || '').trim().toUpperCase()
+    if (!trimmed || trimmed === oldName) return
+    if (profiles[trimmed]) return // refuse to overwrite an existing one
+    const next = { ...profiles }
+    next[trimmed] = next[oldName]
+    delete next[oldName]
+    persistProfiles(next)
+  }
+
+  const deleteProfile = (name) => {
+    if (!window.confirm(`Delete profile for ${name}?`)) return
+    const next = { ...profiles }
+    delete next[name]
+    persistProfiles(next)
+  }
+
+  const addProfile = () => {
+    const base = (computerName || 'NEW-PC').toUpperCase()
+    let candidate = base
+    let i = 2
+    while (profiles[candidate]) { candidate = `${base}-${i++}` }
+    persistProfiles({ ...profiles, [candidate]: allFlagsFalse() })
+  }
+
+  const presetAll = (name) => {
+    persistProfiles({ ...profiles, [name]: allFlagsTrue() })
+  }
+  const presetNone = (name) => {
+    persistProfiles({ ...profiles, [name]: allFlagsFalse() })
+  }
+
   // ── Admin tab content ──────────────────────────────────────────────────────
   const adminContent = adminUnlocked ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card">
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>📱 Main Menu Pages</div>
-        {[
-          { key: 'enableSmallLabel',     label: 'Small Label Print' },
-          { key: 'enableReconstitution', label: 'Reconstitution' },
-          { key: 'enableEV54Tools',      label: 'EV54 Tools' },
-        ].map(({ key, label }) => (
-          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
-            <input type="checkbox" checked={!!settings[key]} onChange={e => toggleFlag(key, e.target.checked)} />
-            <span>{label}</span>
-          </label>
-        ))}
-      </div>
-      <div className="card">
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>💊 Reconstitution Tabs</div>
-        {[
-          { key: 'enableAbxTab',    label: 'ABX Preparation' },
-          { key: 'enableExtempTab', label: 'Extemporaneous' },
-          { key: 'enablePrepackTab', label: 'Prepack' },
-        ].map(({ key, label }) => (
-          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
-            <input type="checkbox" checked={!!settings[key]} onChange={e => toggleFlag(key, e.target.checked)} />
-            <span>{label}</span>
-          </label>
-        ))}
-      </div>
-      <div className="card">
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>🤖 EV54 Tools Tabs</div>
-        {[
-          { key: 'enablePickListTab',  label: 'Print Pick List' },
-          { key: 'enableGtinLabelTab', label: 'Print GTIN Label' },
-        ].map(({ key, label }) => (
-          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
-            <input type="checkbox" checked={!!settings[key]} onChange={e => toggleFlag(key, e.target.checked)} />
-            <span>{label}</span>
-          </label>
-        ))}
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>🖥️ Computer Profiles</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+          Each profile controls which functions are visible on a specific PC (matched by Windows COMPUTERNAME).
+          Computers without a profile show only Drug Enquiry until a session unlock.
+        </div>
+        <div style={{
+          fontSize: 12, padding: '8px 12px', background: 'var(--bg)',
+          borderRadius: 8, marginBottom: 14, display: 'flex',
+          alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap',
+        }}>
+          <span>This PC: <code style={{ fontWeight: 700 }}>{computerName || '(unknown)'}</code></span>
+          <button className="btn btn-primary btn-sm" onClick={addProfile}>+ Add Profile</button>
+        </div>
+        {Object.keys(profiles).length === 0 && (
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>
+            No profiles yet. Click "Add Profile" to create one.
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {Object.entries(profiles).map(([name, flags]) => {
+            const isCurrent = name.toUpperCase() === (computerName || '').toUpperCase()
+            return (
+              <div
+                key={name}
+                style={{
+                  border: `1px solid ${isCurrent ? 'var(--primary)' : 'var(--border)'}`,
+                  borderRadius: 10, padding: 12, background: isCurrent ? 'var(--primary-light, #eff6ff)' : 'var(--bg)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <input
+                    className="form-input"
+                    style={{ flex: '1 1 200px', fontFamily: 'monospace', fontWeight: 700 }}
+                    defaultValue={name}
+                    onBlur={e => renameProfile(name, e.target.value)}
+                  />
+                  {isCurrent && (
+                    <span className="chip" style={{ background: 'var(--primary)', color: '#fff', fontSize: 11 }}>
+                      THIS PC
+                    </span>
+                  )}
+                  <button className="btn btn-ghost btn-sm" onClick={() => presetAll(name)} title="Enable all">All</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => presetNone(name)} title="Disable all">None</button>
+                  <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }} onClick={() => deleteProfile(name)}>Delete</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                  {getFeatureFlagList().map(flag => (
+                    <label key={flag} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!flags[flag]}
+                        onChange={e => updateProfileFlag(name, flag, e.target.checked)}
+                      />
+                      <span>{FLAG_LABELS[flag] || flag}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   ) : (
@@ -317,6 +404,7 @@ export default function Settings({ navigate }) {
               { key: 'mobileShelf', label: 'Mobile Shelf',    hint: '.xls/.xlsx', filters: [{ name: 'Excel',  extensions: ['xls','xlsx'] }] },
               { key: 'ev54Drugs',   label: 'EV54 Drugs',      hint: '.xls/.xlsx', filters: [{ name: 'Excel',  extensions: ['xls','xlsx'] }] },
               { key: 'gtin',        label: 'GTIN Database',   hint: '.accdb',     filters: [{ name: 'Access', extensions: ['accdb','mdb'] }] },
+              { key: 'stockOnhand', label: 'Stock Onhand',    hint: '.xlsx',      filters: [{ name: 'Excel',  extensions: ['xlsx','xls'] }] },
             ].map(({ key, label, hint, filters }) => (
               <div key={key} className="form-group" style={{ marginBottom: 10 }}>
                 <label className="form-label">{label} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({hint})</span></label>

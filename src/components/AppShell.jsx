@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Icon from './Icon'
 import logo from '../assets/logo-nlth.jpg'
-import { getSettings } from '../utils/storage'
+import { useApp } from '../utils/AppContext'
+import UnlockDialog from './UnlockDialog'
 
 const ALL_NAV = [
   { id: 'enquiry',       label: 'Drug Enquiry',      icon: 'search',     badge: '⌘K' },
@@ -10,9 +11,9 @@ const ALL_NAV = [
   { id: 'reconstitution',label: 'Reconstitution',    icon: 'pill',       badge: 'F2', flag: 'enableReconstitution' },
   { id: 'ev54tools',     label: 'EV54 Tools',        icon: 'bot',        badge: 'F3', flag: 'enableEV54Tools' },
   { section: 'Data' },
-  { id: 'maintenance',   label: 'Maintenance',       icon: 'wrench' },
+  { id: 'maintenance',   label: 'Maintenance',       icon: 'wrench',     flag: 'enableMaintenance' },
   { section: 'System' },
-  { id: 'settings',      label: 'Settings',          icon: 'settings-2' },
+  { id: 'settings',      label: 'Settings',          icon: 'settings-2', flag: 'enableSettings' },
 ]
 
 const CRUMB = {
@@ -35,8 +36,11 @@ const SUBTITLE = {
 
 export default function AppShell({ view, onNav, children, onGlobalSearch }) {
   const crumb = CRUMB[view] || CRUMB.enquiry
-  const s = getSettings()
-  const visibleNav = ALL_NAV.filter(n => !n.flag || s[n.flag] !== false)
+  const { effectiveFlags, sessionUnlocked, computerName, unlock, lock } = useApp()
+  const [unlockOpen, setUnlockOpen] = useState(false)
+
+  const visibleNav = ALL_NAV.filter(n => !n.flag || effectiveFlags[n.flag] === true)
+
   return (
     <div className="app-layout">
       <aside className="rail">
@@ -62,10 +66,33 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           )}
         </nav>
         <div className="rail-foot">
-          <div className="rail-avatar">RX</div>
-          <div className="rail-foot-meta">
-            RxStation
-            <small>Pharmacy workstation</small>
+          {sessionUnlocked ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={lock}
+              style={{ width: '100%', fontSize: 12 }}
+              title="Re-lock and reset to this PC's profile"
+            >
+              🔒 Lock session
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setUnlockOpen(true)}
+              style={{ width: '100%', fontSize: 12 }}
+              title="Unlock all functions for this session (admin)"
+            >
+              🔓 Admin unlock
+            </button>
+          )}
+          <div className="rail-foot" style={{ marginTop: 8 }}>
+            <div className="rail-avatar">RX</div>
+            <div className="rail-foot-meta">
+              {computerName || 'RxStation'}
+              <small>Pharmacy workstation</small>
+            </div>
           </div>
         </div>
       </aside>
@@ -92,6 +119,24 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           </div>
         </header>
 
+        {sessionUnlocked && (
+          <div
+            style={{
+              margin: '0 0 14px 0', padding: '10px 14px',
+              background: 'var(--danger-bg, #fde4e4)', color: 'var(--danger, #b91c1c)',
+              border: '1px solid var(--danger, #b91c1c)', borderRadius: 10,
+              fontSize: 13, fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}
+          >
+            <span>⚠️</span>
+            <span>
+              Developer unlock active on <code>{computerName || 'this PC'}</code> —
+              please do not import any data from this PC.
+            </span>
+          </div>
+        )}
+
         <div className="view">
           <div className="view-head">
             <div>
@@ -102,6 +147,8 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
           {children}
         </div>
       </main>
+
+      <UnlockDialog open={unlockOpen} onClose={() => setUnlockOpen(false)} onUnlock={unlock} />
     </div>
   )
 }

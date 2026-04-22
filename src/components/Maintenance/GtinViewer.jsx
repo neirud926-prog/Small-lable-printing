@@ -95,7 +95,7 @@ export default function GtinViewer() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(r => (
+              {filtered.slice(0, 100).map(r => (
                 <tr key={r.gtin}>
                   <td><code style={{ fontFamily: 'monospace', fontSize: 12 }}>{r.gtin}</code></td>
                   <td><code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{r.itemCode}</code></td>
@@ -107,7 +107,8 @@ export default function GtinViewer() {
             </tbody>
           </table>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-            Showing {filtered.length} of {rows.length} entries
+            Showing {Math.min(filtered.length, 100)} of {rows.length} entries
+            {filtered.length > 100 && ' — refine the filter to narrow down'}
           </div>
         </div>
       )}

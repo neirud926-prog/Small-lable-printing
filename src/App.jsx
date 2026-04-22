@@ -11,6 +11,9 @@ import FileConnect from './components/FileConnect'
 import { tryRestore, onRemoteChange, hasStoredHandle, pickExisting } from './utils/fileStorage'
 import { init as initTauri, isTauri }                       from './utils/tauriStorage'
 import { autoLoad }                                          from './utils/dataLoader'
+import { isFreshInstall, seedFromBundle }                    from './utils/storage'
+import { AppProvider, useApp }                               from './utils/AppContext'
+import seedData                                              from './assets/small-label-backup.json'
 
 const pageVariants = {
   initial: { opacity: 0, x: 40 },
@@ -19,21 +22,60 @@ const pageVariants = {
 }
 
 export default function App() {
+  return (
+    <AppProvider>
+      <AppInner />
+    </AppProvider>
+  )
+}
+
+function AppInner() {
   const [view,        setView]        = useState('enquiry')
   const [connected,   setConnected]   = useState(false)
   const [loading,     setLoading]     = useState(true)    // while tryRestore() runs
   const [remoteAlert, setRemoteAlert] = useState(false)   // another PC changed data
   const [needReconnect, setNeedReconnect] = useState(false) // had file, lost permission
   const [printError,  setPrintError]  = useState(null)    // silent print failure message
+  const { effectiveFlags } = useApp()
 
-  // On mount: auto-connect using the best available storage
+  // Always-allowed views (independent of profile flags).
+  const ALWAYS_ALLOWED = new Set(['enquiry'])
+  const VIEW_FLAG = {
+    smalllabel:     'enableSmallLabel',
+    reconstitution: 'enableReconstitution',
+    ev54tools:      'enableEV54Tools',
+    maintenance:    'enableMaintenance',
+    settings:       'enableSettings',
+  }
+  function isViewAllowed(v) {
+    if (ALWAYS_ALLOWED.has(v)) return true
+    const flag = VIEW_FLAG[v]
+    return !flag || effectiveFlags[flag] === true
+  }
+
+  // If the active view becomes disallowed (e.g. session locked), bounce to Drug Enquiry.
+  useEffect(() => {
+    if (!isViewAllowed(view)) setView('enquiry')
+  }, [effectiveFlags, view])
+
+  // On mount: seed bundled data on truly-fresh installs, then auto-connect.
   useEffect(() => {
     async function init() {
+      // 0. Bundled seed for first-time installs (only when no drug data exists anywhere).
+      try {
+        if (isFreshInstall()) {
+          await seedFromBundle(seedData)
+          console.log('Fresh install — seeded bundled drug database')
+        }
+      } catch (e) {
+        console.warn('Seed bundle failed:', e)
+      }
+
       // 1. Native app — Tauri reads/writes D:\SmallLabel\small-label-data.json directly
       if (isTauri()) {
         try {
           if (await initTauri()) {
-            await autoLoad()    // refresh drugs / locations / GTIN from configured paths
+            await autoLoad()    // refresh drugs / locations / GTIN / stock from configured paths
             setConnected(true); setLoading(false); return
           }
         } catch (e) {

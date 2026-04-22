@@ -580,6 +580,14 @@ fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
     std::fs::read(&path).map_err(|e| e.to_string())
 }
 
+/// Return the Windows COMPUTERNAME environment variable (empty string if unset).
+#[command]
+fn get_computer_name() -> String {
+    std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_default()
+}
+
 /// Query the GTIN table from a Microsoft Access .accdb file via PowerShell + OleDB.
 #[command]
 fn query_gtin_db(path: String) -> Result<Vec<serde_json::Value>, String> {
@@ -669,7 +677,8 @@ pub fn run() {
             print_label_html,
             print_label_powershell,
             print_gtin_label,
-            list_printers
+            list_printers,
+            get_computer_name
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
