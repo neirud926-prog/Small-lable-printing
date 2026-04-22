@@ -18,8 +18,9 @@ src-tauri/gen/schemas/
 !release/*.exe
 !release/*.msi
 
-# Local data / backups (machine-specific)
+# Local data / backups (machine-specific) — except the bundled seed shipped in src/assets
 small-label-backup.json
+!src/assets/small-label-backup.json
 LABEL OUTPUT RESULT/
 
 # Environment files

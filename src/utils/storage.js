@@ -52,7 +52,10 @@ const KEYS = {
   MOBILE_SHELF:    'sml_mobileShelf',     // { itemCode → bin string } (EV54 refill stock)
   EV54_DRUGS:      'sml_ev54Drugs',       // [{ itemCode, name, evLocator }]
   GTIN_MAP:        'sml_gtinMap',         // { gtin → itemCode }
-  DATA_PATHS:      'sml_dataPaths',       // { phq, location, mobileShelf, ev54Drugs, gtin } file paths
+  DATA_PATHS:      'sml_dataPaths',       // { phq, location, mobileShelf, ev54Drugs, gtin, stockOnhand } file paths
+  STOCK_ONHAND:    'sml_stockOnhand',     // { ITEMCODE → { lot, expDate, qty, unit } } – longest exp per item
+  STOCK_ONHAND_META: 'sml_stockOnhand_meta', // { sourceDate: 'YYYY-MM-DD' | null, refreshedAt: ISO string }
+  COMPUTER_PROFILES: 'sml_computerProfiles', // { COMPUTERNAME → { enableSmallLabel, … } }
 }
 
 // ── DRUGS ─────────────────────────────────────────────────────────────────────
@@ -192,15 +195,7 @@ export function getSettings() {
     // GTIN QR label sizing (Settings → General → GTIN QR Label)
     gtinQrSizeMm:         0,    // 0 = auto-fill; positive = fixed mm
     gtinItemCodeFontSize: 5,    // pt, item code text below QR code
-    // Feature flags (Settings → Admin) — all enabled by default
-    enableSmallLabel:      true,
-    enableReconstitution:  true,
-    enableEV54Tools:       true,
-    enableAbxTab:          true,
-    enableExtempTab:       true,
-    enablePrepackTab:      true,
-    enablePickListTab:     true,
-    enableGtinLabelTab:    true,
+    // NOTE: feature flags moved to COMPUTER_PROFILES (per-machine). See getProfileForComputer.
   })
 }
 export function saveSettings(settings) {
@@ -228,10 +223,55 @@ export function getDataPaths() {
     mobileShelf: '',
     ev54Drugs:   '',
     gtin:        '\\\\nltpha-nas01\\PharmShare\\Programme Data\\Database\\Replenishment.accdb',
+    stockOnhand: '\\\\nltpha-nas01\\PharmShare\\Programme Data\\StockOnhand\\Stock Onhand.xlsx',
   })
 }
 export function saveDataPaths(paths) {
   save(KEYS.DATA_PATHS, { ...getDataPaths(), ...paths })
+}
+
+// ── STOCK ON-HAND ─────────────────────────────────────────────────────────────
+// Pulled from the Main Store \Stock Onhand.xlsx. For each item code, only the
+// lot with the longest expiry is retained (plus its qty).
+export function getStockOnhand()             { return load(KEYS.STOCK_ONHAND, {}) }
+export function saveStockOnhand(map, meta)   {
+  save(KEYS.STOCK_ONHAND, map)
+  if (meta) save(KEYS.STOCK_ONHAND_META, meta)
+}
+export function getStockForItem(code)        {
+  return getStockOnhand()[code.trim().toUpperCase()] || null
+}
+export function getStockOnhandMeta()         {
+  return load(KEYS.STOCK_ONHAND_META, { sourceDate: null, refreshedAt: null })
+}
+
+// ── COMPUTER PROFILES ─────────────────────────────────────────────────────────
+// Per-workstation feature access. NLTPMS0010 = full access; other machines get
+// Drug Enquiry only unless the session is unlocked with the admin PIN.
+const ALL_FEATURE_FLAGS = [
+  'enableSmallLabel', 'enableReconstitution', 'enableEV54Tools',
+  'enableAbxTab', 'enableExtempTab', 'enablePrepackTab',
+  'enablePickListTab', 'enableGtinLabelTab',
+  'enableMaintenance', 'enableSettings',
+]
+export function getFeatureFlagList() { return [...ALL_FEATURE_FLAGS] }
+export function allFlagsTrue() {
+  return ALL_FEATURE_FLAGS.reduce((o, k) => (o[k] = true, o), {})
+}
+export function allFlagsFalse() {
+  return ALL_FEATURE_FLAGS.reduce((o, k) => (o[k] = false, o), {})
+}
+export function getComputerProfiles() {
+  return load(KEYS.COMPUTER_PROFILES, {
+    NLTPMS0010: allFlagsTrue(),
+  })
+}
+export function saveComputerProfiles(map) { save(KEYS.COMPUTER_PROFILES, map) }
+export function getProfileForComputer(name) {
+  const key = (name || '').trim().toUpperCase()
+  const profiles = getComputerProfiles()
+  const match = Object.entries(profiles).find(([k]) => k.toUpperCase() === key)
+  return match ? match[1] : allFlagsFalse()
 }
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
@@ -247,4 +287,28 @@ export async function importAllData(jsonString) {
   Object.entries(data).forEach(([k, v]) => { if (v !== null) lsSet(k, v) })
   if (ts.isConnected())      await ts.setAll(data)
   else if (fs.isConnected()) await fs.setAll(data)
+}
+
+// ── FRESH-INSTALL SEED ────────────────────────────────────────────────────────
+// Considered a fresh install when the drugs list is missing/empty in every
+// active backing store. Tauri / File-API connected users with real data never
+// trigger the seed.
+export function isFreshInstall() {
+  try {
+    const localDrugs = lsGet(KEYS.DRUGS, null)
+    if (Array.isArray(localDrugs) && localDrugs.length > 0) return false
+    if (ts.isConnected()) {
+      const d = ts.get(KEYS.DRUGS, null)
+      if (Array.isArray(d) && d.length > 0) return false
+    }
+    if (fs.isConnected()) {
+      const d = fs.get(KEYS.DRUGS, null)
+      if (Array.isArray(d) && d.length > 0) return false
+    }
+    return true
+  } catch { return false }
+}
+
+export async function seedFromBundle(seedObject) {
+  await importAllData(JSON.stringify(seedObject))
 }

@@ -3,14 +3,14 @@ import { AnimatePresence, motion } from 'framer-motion'
 import AbxTab from './AbxTab'
 import ExtempTab from './ExtempTab'
 import PrepackTab from './PrepackTab'
-import { getSettings } from '../../utils/storage'
+import { useApp } from '../../utils/AppContext'
 
 export default function Reconstitution() {
-  const s = getSettings()
+  const { effectiveFlags } = useApp()
   const TABS = [
-    { id: 'abx',    label: 'ABX Preparation', Component: AbxTab,     enabled: s.enableAbxTab     !== false },
-    { id: 'extemp', label: 'Extemporaneous',  Component: ExtempTab,  enabled: s.enableExtempTab  !== false },
-    { id: 'prepack', label: 'Prepack',         Component: PrepackTab, enabled: s.enablePrepackTab !== false },
+    { id: 'abx',    label: 'ABX Preparation', Component: AbxTab,     enabled: effectiveFlags.enableAbxTab     === true },
+    { id: 'extemp', label: 'Extemporaneous',  Component: ExtempTab,  enabled: effectiveFlags.enableExtempTab  === true },
+    { id: 'prepack', label: 'Prepack',         Component: PrepackTab, enabled: effectiveFlags.enablePrepackTab === true },
   ].filter(t => t.enabled)
 
   const [tab, setTab] = useState(TABS[0]?.id || 'abx')

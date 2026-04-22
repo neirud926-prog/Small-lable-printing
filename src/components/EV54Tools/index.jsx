@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import PrintPickList from './PrintPickList'
 import PrintGtinLabel from './PrintGtinLabel'
-import { getSettings } from '../../utils/storage'
+import { useApp } from '../../utils/AppContext'
 
 export default function EV54Tools() {
-  const s = getSettings()
+  const { effectiveFlags } = useApp()
   const TABS = [
-    { id: 'picklist',  label: 'Print EV54 Pick List', Component: PrintPickList,  enabled: s.enablePickListTab  !== false },
-    { id: 'gtinlabel', label: 'Print GTIN Label',     Component: PrintGtinLabel, enabled: s.enableGtinLabelTab !== false },
+    { id: 'picklist',  label: 'Print EV54 Pick List', Component: PrintPickList,  enabled: effectiveFlags.enablePickListTab  === true },
+    { id: 'gtinlabel', label: 'Print GTIN Label',     Component: PrintGtinLabel, enabled: effectiveFlags.enableGtinLabelTab === true },
   ].filter(t => t.enabled)
 
   const [tab, setTab] = useState(TABS[0]?.id || 'picklist')
