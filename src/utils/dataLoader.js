@@ -117,13 +117,21 @@ export async function loadEV54DrugsXls(path) {
 //   G1 = last-updated date (Excel serial or string)
 //   Cols: A=itemCode, B=name, C=lot, D=expDate, E=unit, F=qty
 // For duplicate item codes, retain only the row with the longest exp date.
+//
+// NOTE: We deliberately read the workbook WITHOUT `cellDates: true` so that
+// date cells come back as raw Excel serial numbers. SheetJS's internal
+// `numdate()` subtracts `(refdate.getTimezoneOffset() − basedate.getTimezoneOffset())`
+// minutes when constructing Date objects. Browsers/Node report a different
+// historical offset for `new Date(1899, 11, 30)` than for "now" in any
+// timezone that wasn't exactly UTC+8/UTC+9/etc in 1899 (Hong Kong used LMT
+// ≈ UTC+7:36 until 1904). The resulting Date lands ~24 minutes before local
+// midnight, so `getDate()` returns day-1. Using `XLSX.SSF.parse_date_code`
+// on the raw serial is pure integer math and avoids the whole problem.
 function excelDateToISO(value) {
   if (value === null || value === undefined || value === '') return null
   if (value instanceof Date) {
+    // Fallback for callers that still pass Date objects. Use local y/m/d.
     if (isNaN(value.getTime())) return null
-    // Use local-time components so a spreadsheet value of 23-Apr stays 23-Apr
-    // regardless of the machine's timezone (toISOString() converts to UTC and
-    // would roll back a day for any timezone east of UTC).
     const y  = value.getFullYear()
     const m  = String(value.getMonth() + 1).padStart(2, '0')
     const d  = String(value.getDate()).padStart(2, '0')
@@ -136,7 +144,7 @@ function excelDateToISO(value) {
     const dd = String(d.d).padStart(2, '0')
     return `${d.y}-${mm}-${dd}`
   }
-  // String — try DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, etc.
+  // String — try DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD/MM (no year).
   const s = String(value).trim()
   const iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/)
   if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`
@@ -144,6 +152,11 @@ function excelDateToISO(value) {
   if (dmy) {
     const yyyy = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3]
     return `${yyyy}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
+  }
+  const dmNoYear = s.match(/^(\d{1,2})[-\/](\d{1,2})$/)
+  if (dmNoYear) {
+    const yyyy = String(new Date().getFullYear())
+    return `${yyyy}-${dmNoYear[2].padStart(2, '0')}-${dmNoYear[1].padStart(2, '0')}`
   }
   const t = Date.parse(s)
   if (isNaN(t)) return null
@@ -157,7 +170,8 @@ function excelDateToISO(value) {
 export async function loadStockOnhandXlsx(path) {
   const binary = await invoke('read_binary_file', { path })
   const arr    = new Uint8Array(binary)
-  const wb     = XLSX.read(arr, { type: 'array', cellDates: true })
+  // cellDates intentionally OFF — see note on excelDateToISO above.
+  const wb     = XLSX.read(arr, { type: 'array' })
   const ws     = wb.Sheets[wb.SheetNames[0]]
   const rows   = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true })
 
