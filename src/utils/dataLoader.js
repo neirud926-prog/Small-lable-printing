@@ -121,7 +121,13 @@ function excelDateToISO(value) {
   if (value === null || value === undefined || value === '') return null
   if (value instanceof Date) {
     if (isNaN(value.getTime())) return null
-    return value.toISOString().slice(0, 10)
+    // Use local-time components so a spreadsheet value of 23-Apr stays 23-Apr
+    // regardless of the machine's timezone (toISOString() converts to UTC and
+    // would roll back a day for any timezone east of UTC).
+    const y  = value.getFullYear()
+    const m  = String(value.getMonth() + 1).padStart(2, '0')
+    const d  = String(value.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }
   if (typeof value === 'number') {
     const d = XLSX.SSF?.parse_date_code?.(value)
@@ -140,7 +146,12 @@ function excelDateToISO(value) {
     return `${yyyy}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`
   }
   const t = Date.parse(s)
-  return isNaN(t) ? null : new Date(t).toISOString().slice(0, 10)
+  if (isNaN(t)) return null
+  const dt = new Date(t)
+  const y  = dt.getFullYear()
+  const m  = String(dt.getMonth() + 1).padStart(2, '0')
+  const d  = String(dt.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 export async function loadStockOnhandXlsx(path) {

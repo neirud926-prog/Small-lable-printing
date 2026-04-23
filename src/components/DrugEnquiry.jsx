@@ -33,7 +33,12 @@ function addDaysISO(days) {
   const d = new Date()
   d.setHours(0,0,0,0)
   d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
+  // Use local-time components (toISOString() converts to UTC and would roll
+  // back a day for any timezone east of UTC).
+  const y  = d.getFullYear()
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
 }
 function daysBetween(targetISO, fromISO) {
   const a = new Date(targetISO).getTime()
