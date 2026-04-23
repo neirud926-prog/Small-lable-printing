@@ -71,20 +71,22 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={lock}
-              style={{ width: '100%', fontSize: 12 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 10px' }}
               title="Re-lock and reset to this PC's profile"
+              aria-label="Lock session"
             >
-              🔒 Lock session
+              <Icon name="lock" size={16} />
             </button>
           ) : (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => setUnlockOpen(true)}
-              style={{ width: '100%', fontSize: 12 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 10px' }}
               title="Unlock all functions for this session (admin)"
+              aria-label="Admin unlock"
             >
-              🔓 Admin unlock
+              <Icon name="unlock" size={16} />
             </button>
           )}
           <div className="rail-foot" style={{ marginTop: 8 }}>

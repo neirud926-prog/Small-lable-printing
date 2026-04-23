@@ -494,3 +494,5 @@ html, body, #root {
 .view-head       { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 18px; gap: 16px; }
 .view-title      { font: 700 24px var(--font); color: var(--text); letter-spacing: -.015em; }
 .view-sub        { font: 400 13px var(--font); color: var(--text-subtle); margin-top: 3px; }
+
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

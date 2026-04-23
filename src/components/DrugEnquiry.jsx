@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
 import {
   getDrugs, getItemLocation, getGtinMap, getExpAfterOpenDays,
-  getStockOnhand, getStockOnhandMeta,
+  getStockOnhand, getStockOnhandMeta, getDataPaths,
 } from '../utils/storage'
+import { refreshSource } from '../utils/dataLoader'
 import Icon from './Icon'
 
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
@@ -49,12 +50,31 @@ function daysBetween(targetISO, fromISO) {
 const DAYS_40W = 280
 
 export default function DrugEnquiry() {
-  const [q, setQ]       = useState('')
-  const [days, setDays] = useState('')
+  const [q, setQ]             = useState('')
+  const [days, setDays]       = useState('')
+  const [version, setVersion] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState('')
 
   const drugs = useMemo(() => getDrugs(), [])
-  const stock = useMemo(() => getStockOnhand(), [])
-  const stockMeta = useMemo(() => getStockOnhandMeta(), [])
+  const stock = useMemo(() => getStockOnhand(), [version])
+  const stockMeta = useMemo(() => getStockOnhandMeta(), [version])
+
+  async function handleRefresh() {
+    const path = getDataPaths().stockOnhand
+    if (!path) { setRefreshMsg('✗ Stock Onhand path not configured in Settings.'); setTimeout(() => setRefreshMsg(''), 4000); return }
+    setRefreshing(true)
+    setRefreshMsg('')
+    const r = await refreshSource('stockOnhand', path)
+    setRefreshing(false)
+    if (r.loaded) {
+      setVersion(v => v + 1)
+      setRefreshMsg(`✓ Refreshed — ${r.count} rows (G1 ${r.sourceDate || '—'})`)
+    } else {
+      setRefreshMsg(`✗ ${r.reason}`)
+    }
+    setTimeout(() => setRefreshMsg(''), 5000)
+  }
   const gtinMap = useMemo(() => {
     const map = {}
     const raw = getGtinMap()
@@ -124,7 +144,30 @@ export default function DrugEnquiry() {
             </span>
           )}
         </div>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          title="Refresh Stock Onhand"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 10px' }}
+        >
+          <Icon name="refresh-cw" size={16}
+            style={refreshing ? { animation: 'spin 0.9s linear infinite' } : undefined} />
+        </button>
       </div>
+
+      {refreshMsg && (
+        <div style={{
+          padding: '8px 12px', marginBottom: 10, borderRadius: 8, fontSize: 12,
+          fontFamily: 'var(--font-mono)',
+          background: refreshMsg.startsWith('✓') ? 'var(--success-bg, #ecfdf5)' : 'var(--danger-bg, #fef2f2)',
+          color:      refreshMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)',
+          border:     `1px solid ${refreshMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)'}`,
+        }}>
+          {refreshMsg}
+        </div>
+      )}
 
       <div className="ds-card" style={{ padding: '16px 18px' }}>
         <div style={{ position: 'relative' }}>
@@ -161,16 +204,24 @@ export default function DrugEnquiry() {
               <th style={{ padding: '12px 16px' }}>Location</th>
               <th style={{ padding: '12px 16px' }}>
                 <div>Longest Exp</div>
-                <div style={{
-                  fontSize: 10, fontWeight: 500, marginTop: 2,
-                  color: isStale ? 'var(--warning, #b45309)' : 'var(--text-subtle)',
-                }}>
+                <div
+                  title={`G1 raw: ${stockMeta.rawG1 || '—'}\nRefreshed at ${stockMeta.refreshedAt || '—'}`}
+                  style={{
+                    fontSize: 10, fontWeight: 500, marginTop: 2,
+                    color: isStale ? 'var(--warning, #b45309)' : 'var(--text-subtle)',
+                  }}
+                >
                   {stockMeta.sourceDate
                     ? (isStale
                         ? `⚠ stale — updated on ${fmtDDMMMYY(stockMeta.sourceDate)}`
                         : `updated on ${fmtDDMMMYY(stockMeta.sourceDate)}`)
                     : '— not loaded —'}
                 </div>
+                {isStale && stockMeta.rawG1 && (
+                  <div style={{ fontSize: 10, color: 'var(--text-subtle)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+                    G1: "{stockMeta.rawG1}"
+                  </div>
+                )}
               </th>
               <th style={{ padding: '12px 16px' }}>Exp after opening</th>
             </tr>

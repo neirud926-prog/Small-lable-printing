@@ -5,7 +5,8 @@ import { getSettings, saveSettings, exportAllData, importAllData,
          getComputerProfiles, saveComputerProfiles, getFeatureFlagList, allFlagsTrue, allFlagsFalse } from '../utils/storage'
 import { isConnected as isFileConnected, getFileName, disconnect as fileDisconnect } from '../utils/fileStorage'
 import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
-import { autoLoad } from '../utils/dataLoader'
+import { autoLoad, refreshSource } from '../utils/dataLoader'
+import Icon from './Icon'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
@@ -43,6 +44,8 @@ export default function Settings({ navigate }) {
   const [importMsg,     setImportMsg]    = useState('')
   const [dataPaths,     setDataPaths]    = useState(getDataPaths)
   const [refreshMsg,    setRefreshMsg]   = useState('')
+  const [refreshingKey, setRefreshingKey] = useState(null)
+  const [rowMsg,        setRowMsg]       = useState({})
   const [printers,      setPrinters]     = useState([])
   const [profiles,      setProfiles]     = useState(getComputerProfiles)
   const { computerName, refreshFlags }   = useApp()
@@ -74,6 +77,17 @@ export default function Settings({ navigate }) {
         savePathsToDisk(updated)
       }
     } catch { /* user cancelled */ }
+  }
+
+  const handleSingleRefresh = async (key, label) => {
+    setRefreshingKey(key)
+    const r = await refreshSource(key, dataPaths[key])
+    setRefreshingKey(null)
+    const msg = r.loaded
+      ? `✓ ${label}: ${r.count ?? 0} rows${r.sourceDate ? ` (G1 ${r.sourceDate})` : ''}`
+      : `✗ ${label}: ${r.reason}`
+    setRowMsg(m => ({ ...m, [key]: msg }))
+    setTimeout(() => setRowMsg(m => ({ ...m, [key]: '' })), 6000)
   }
 
   const handleRefreshNow = async () => {
@@ -424,7 +438,27 @@ export default function Settings({ navigate }) {
                     <button className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap' }}
                       onClick={() => browsePath(key, filters)}>Browse…</button>
                   )}
+                  {isTauri() && dataPaths[key] && (
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      title={`Refresh ${label}`}
+                      disabled={refreshingKey === key}
+                      onClick={() => handleSingleRefresh(key, label)}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 10px' }}
+                    >
+                      <Icon name="refresh-cw" size={14}
+                        style={refreshingKey === key ? { animation: 'spin 0.9s linear infinite' } : undefined} />
+                    </button>
+                  )}
                 </div>
+                {rowMsg[key] && (
+                  <div style={{
+                    fontSize: 11, marginTop: 4, fontFamily: 'var(--font-mono)',
+                    color: rowMsg[key].startsWith('✓') ? 'var(--success)' : 'var(--danger)',
+                  }}>
+                    {rowMsg[key]}
+                  </div>
+                )}
               </div>
             ))}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>

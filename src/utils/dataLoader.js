@@ -162,7 +162,9 @@ export async function loadStockOnhandXlsx(path) {
   const rows   = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true })
 
   // G1 = column index 6 in row 0
-  const sourceDate = rows.length > 0 ? excelDateToISO(rows[0][6]) : null
+  const rawG1Value = rows.length > 0 ? rows[0][6] : null
+  const sourceDate = excelDateToISO(rawG1Value)
+  const rawG1      = rawG1Value == null ? '' : String(rawG1Value)
 
   const map = {}
   for (let i = 1; i < rows.length; i++) {
@@ -182,7 +184,15 @@ export async function loadStockOnhandXlsx(path) {
       map[itemCode] = { lot, expDate, qty: Number.isFinite(qty) ? qty : null, unit }
     }
   }
-  return { map, sourceDate }
+
+  console.log('[stockOnhand]', {
+    rawG1,
+    rawG1Type: rawG1Value instanceof Date ? 'Date' : typeof rawG1Value,
+    parsedSourceDate: sourceDate,
+    rowCount: Object.keys(map).length,
+  })
+
+  return { map, sourceDate, rawG1 }
 }
 
 // ── GTIN .accdb reader ────────────────────────────────────────────────────────
@@ -201,6 +211,55 @@ async function loadGtinAccdb(path) {
   }
 }
 
+// ── Single-source refresh ─────────────────────────────────────────────────────
+// Loads one data source, writes it to storage, and returns a status object.
+// Used by both autoLoad() and the per-row/inline refresh buttons.
+export async function refreshSource(key, path) {
+  if (!path) return { key, loaded: false, reason: 'no path configured' }
+  try {
+    switch (key) {
+      case 'phq': {
+        const drugs = parsePHQText(await readTextFile(path))
+        if (drugs.length > 0) { saveDrugs(drugs); return { key, loaded: true, count: drugs.length } }
+        return { key, loaded: false, reason: 'no rows parsed' }
+      }
+      case 'location': {
+        const map = await loadLocationXls(path)
+        if (Object.keys(map).length > 0) { saveItemLocations(map); return { key, loaded: true, count: Object.keys(map).length } }
+        return { key, loaded: false, reason: 'no rows parsed' }
+      }
+      case 'mobileShelf': {
+        const map = await loadMobileShelfXls(path)
+        if (Object.keys(map).length > 0) { saveMobileShelf(map); return { key, loaded: true, count: Object.keys(map).length } }
+        return { key, loaded: false, reason: 'no rows parsed' }
+      }
+      case 'ev54Drugs': {
+        const list = await loadEV54DrugsXls(path)
+        if (list.length > 0) { saveEV54Drugs(list); return { key, loaded: true, count: list.length } }
+        return { key, loaded: false, reason: 'no rows parsed' }
+      }
+      case 'gtin': {
+        const map = await loadGtinAccdb(path)
+        if (map === null) return { key, loaded: false, reason: 'Access driver error (see console)' }
+        saveGtinMap(map)
+        return { key, loaded: true, count: Object.keys(map).length }
+      }
+      case 'stockOnhand': {
+        const { map, sourceDate, rawG1 } = await loadStockOnhandXlsx(path)
+        if (Object.keys(map).length > 0) {
+          saveStockOnhand(map, { sourceDate, refreshedAt: new Date().toISOString(), rawG1 })
+          return { key, loaded: true, count: Object.keys(map).length, sourceDate, rawG1 }
+        }
+        return { key, loaded: false, reason: 'no stock rows' }
+      }
+      default:
+        return { key, loaded: false, reason: `unknown source '${key}'` }
+    }
+  } catch (e) {
+    return { key, loaded: false, reason: e.message || String(e) }
+  }
+}
+
 // ── Main entry point ──────────────────────────────────────────────────────────
 /**
  * Called on startup after Tauri storage init.
@@ -211,90 +270,23 @@ export async function autoLoad() {
 
   const paths  = getDataPaths()
   const errors = []
-  let phqLoaded = false, locationLoaded = false, gtinLoaded = false
-  let mobileShelfLoaded = false, ev54DrugsLoaded = false, stockOnhandLoaded = false
+  const result = {
+    phqLoaded: false, locationLoaded: false, mobileShelfLoaded: false,
+    ev54DrugsLoaded: false, gtinLoaded: false, stockOnhandLoaded: false,
+    errors,
+  }
+  const keyToFlag = {
+    phq: 'phqLoaded', location: 'locationLoaded', mobileShelf: 'mobileShelfLoaded',
+    ev54Drugs: 'ev54DrugsLoaded', gtin: 'gtinLoaded', stockOnhand: 'stockOnhandLoaded',
+  }
+  const labelFor = { phq: 'PHQ', location: 'Location', mobileShelf: 'Mobile Shelf',
+                     ev54Drugs: 'EV54 Drugs', gtin: 'GTIN', stockOnhand: 'Stock Onhand' }
 
-  // 1. PHQ drug list
-  if (paths.phq) {
-    try {
-      const text  = await readTextFile(paths.phq)
-      const drugs = parsePHQText(text)
-      if (drugs.length > 0) {
-        saveDrugs(drugs)
-        phqLoaded = true
-      }
-    } catch (e) {
-      errors.push(`PHQ: ${e.message || e}`)
-    }
+  for (const key of ['phq', 'location', 'mobileShelf', 'ev54Drugs', 'gtin', 'stockOnhand']) {
+    const r = await refreshSource(key, paths[key])
+    if (r.loaded) result[keyToFlag[key]] = true
+    else if (r.reason && r.reason !== 'no path configured') errors.push(`${labelFor[key]}: ${r.reason}`)
   }
 
-  // 2. Item locations
-  if (paths.location) {
-    try {
-      const map = await loadLocationXls(paths.location)
-      if (Object.keys(map).length > 0) {
-        saveItemLocations(map)
-        locationLoaded = true
-      }
-    } catch (e) {
-      errors.push(`Location: ${e.message || e}`)
-    }
-  }
-
-  // 3. Mobile Shelf / Wooden Cabinet
-  if (paths.mobileShelf) {
-    try {
-      const map = await loadMobileShelfXls(paths.mobileShelf)
-      if (Object.keys(map).length > 0) {
-        saveMobileShelf(map)
-        mobileShelfLoaded = true
-      }
-    } catch (e) {
-      errors.push(`Mobile Shelf: ${e.message || e}`)
-    }
-  }
-
-  // 4. EV54 Drugs allowlist
-  if (paths.ev54Drugs) {
-    try {
-      const list = await loadEV54DrugsXls(paths.ev54Drugs)
-      if (list.length > 0) {
-        saveEV54Drugs(list)
-        ev54DrugsLoaded = true
-      }
-    } catch (e) {
-      errors.push(`EV54 Drugs: ${e.message || e}`)
-    }
-  }
-
-  // 5. GTIN map
-  if (paths.gtin) {
-    try {
-      const map = await loadGtinAccdb(paths.gtin)
-      if (map !== null) {
-        saveGtinMap(map)
-        gtinLoaded = true
-      }
-    } catch (e) {
-      errors.push(`GTIN: ${e.message || e}`)
-    }
-  }
-
-  // 6. Stock Onhand (longest-exp lot per item code)
-  if (paths.stockOnhand) {
-    try {
-      const { map, sourceDate } = await loadStockOnhandXlsx(paths.stockOnhand)
-      if (Object.keys(map).length > 0) {
-        saveStockOnhand(map, { sourceDate, refreshedAt: new Date().toISOString() })
-        stockOnhandLoaded = true
-      }
-    } catch (e) {
-      errors.push(`Stock Onhand: ${e.message || e}`)
-    }
-  }
-
-  return {
-    phqLoaded, locationLoaded, mobileShelfLoaded, ev54DrugsLoaded, gtinLoaded,
-    stockOnhandLoaded, errors,
-  }
+  return result
 }
