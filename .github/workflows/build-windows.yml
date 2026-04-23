@@ -1,13 +1,11 @@
 name: Build Tauri Windows App
 
 # Triggers:
-#   - Push to this branch when source files change (auto-build)
+#   - Push to main when source files change (auto-build)
 #   - Manual trigger from GitHub Actions tab
 on:
   push:
     branches:
-      - claude/tauri-remote-build-IdhJ7
-      - claude/role-based-functions-drug-enquiry-DAB9I
       - main
     paths:
       - 'src/**'
@@ -111,7 +109,7 @@ jobs:
             release/*.msi
           retention-days: 30
 
-      # ── Commit artifacts back to the branch ─────────────────────────────────
+      # ── Commit artifacts back to main ───────────────────────────────────────
       - name: Commit and push release artifacts
         shell: pwsh
         run: |
@@ -124,8 +122,10 @@ jobs:
           if ($staged) {
             Write-Host "Committing updated artifacts:`n$staged"
             git commit -m "chore: update Windows release artifacts [skip ci]"
-            git push
-            Write-Host "Done — artifacts pushed to branch."
+            # Pull latest main first to avoid race conditions, then push
+            git pull --rebase origin main
+            git push origin HEAD:main
+            Write-Host "Done — artifacts pushed to main."
           } else {
             Write-Host "Artifacts unchanged — nothing to commit."
           }
