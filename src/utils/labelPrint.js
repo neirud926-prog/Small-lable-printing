@@ -250,8 +250,8 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
         printerName,
         widthMm:        w,
         heightMm:       h,
-        titleFontSize:  settings.batchFontSize || 6,
-        valueFontSize:  (settings.drugFontSize || 8.5) + 0.5,
+        titleFontSize:  settings.reconTitleFontSize || settings.batchFontSize || 6,
+        valueFontSize:  settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5),
         fontFamily:     settings.fontFamily    || 'Arial',
       })
       return
@@ -282,8 +282,8 @@ export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings =
 
 export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}) {
   const ff        = settings.fontFamily    || 'Arial'
-  const titlePt   = settings.batchFontSize || 6
-  const valuePt   = (settings.drugFontSize || 8.5) + 0.5
+  const titlePt   = settings.reconTitleFontSize || settings.batchFontSize || 6
+  const valuePt   = settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5)
   const half = `flex:1 1 50%;display:flex;flex-direction:column;justify-content:center;padding:0 1mm;overflow:hidden;`
   const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;`
   const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:bold;line-height:1.15;margin-top:0.5mm;`
