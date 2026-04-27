@@ -8,7 +8,7 @@ import { useApp } from '../../utils/AppContext'
 export default function Reconstitution() {
   const { effectiveFlags } = useApp()
   const TABS = [
-    { id: 'abx',    label: 'ABX Preparation', Component: AbxTab,     enabled: effectiveFlags.enableAbxTab     === true },
+    { id: 'abx',    label: 'Drug Reconstitution', Component: AbxTab,     enabled: effectiveFlags.enableAbxTab     === true },
     { id: 'extemp', label: 'Extemporaneous',  Component: ExtempTab,  enabled: effectiveFlags.enableExtempTab  === true },
     { id: 'prepack', label: 'Prepack',         Component: PrepackTab, enabled: effectiveFlags.enablePrepackTab === true },
   ].filter(t => t.enabled)
