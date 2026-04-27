@@ -193,6 +193,130 @@ Write-Host "OK: label sent to $($script:d.printerName)"
     template.replace("DATA_FILE", data_file)
 }
 
+// ── Drug Reconstitution label print script (50/50 split) ─────────────────────
+
+/// Build the PowerShell script that renders a Drug Reconstitution label.
+/// Layout: 50% upper half = "Batch No:" + value, 50% lower half = "Use Before:" + value.
+fn build_ps_recon_print_script(data_file: &str) -> String {
+    let template = r#"
+Add-Type -AssemblyName System.Drawing
+
+$script:d = Get-Content 'DATA_FILE' -Raw | ConvertFrom-Json
+
+$pd = New-Object System.Drawing.Printing.PrintDocument
+$pd.PrinterSettings.PrinterName = $script:d.printerName
+if (-not $pd.PrinterSettings.IsValid) {
+    throw "Printer '$($script:d.printerName)' not found or inaccessible. Check Settings -> Thermal Printer."
+}
+
+$pd.add_PrintPage({
+    param($sender, $e)
+    $g  = $e.Graphics
+    $g.PageUnit = [System.Drawing.GraphicsUnit]::Millimeter
+    $d  = $script:d
+
+    $blk = [System.Drawing.Brushes]::Black
+    $w   = [double]$d.widthMm
+    $h   = [double]$d.heightMm
+
+    $padX = 1.0
+    $halfH = $h / 2.0
+
+    $titlePt = [double]$d.titleFontSize
+    $valuePt = [double]$d.valueFontSize
+    $titleFont = New-Object System.Drawing.Font([string]$d.fontFamily, $titlePt, [System.Drawing.FontStyle]::Regular)
+    $valueFont = New-Object System.Drawing.Font([string]$d.fontFamily, $valuePt, [System.Drawing.FontStyle]::Bold)
+
+    $titleH = $titlePt * 0.353 * 1.25
+    $valueH = $valuePt * 0.353 * 1.25
+    $stackH = $titleH + $valueH + 0.4
+    $topPad = ($halfH - $stackH) / 2.0
+    if ($topPad -lt 0.3) { $topPad = 0.3 }
+
+    # Upper half: Batch No
+    $y0 = $topPad
+    $g.DrawString("Batch No:",            $titleFont, $blk, $padX, $y0)
+    $g.DrawString([string]$d.batchNo,     $valueFont, $blk, $padX, ($y0 + $titleH + 0.4))
+
+    # Lower half: Use Before
+    $y1 = $halfH + $topPad
+    $g.DrawString("Use Before:",          $titleFont, $blk, $padX, $y1)
+    $g.DrawString([string]$d.expiry,      $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+
+    $e.HasMorePages = $false
+})
+
+$pd.Print()
+Write-Host "OK: reconstitution label sent to $($script:d.printerName)"
+"#;
+    template.replace("DATA_FILE", data_file)
+}
+
+/// Native silent print for the Drug Reconstitution label (50/50 split layout).
+#[command]
+fn print_reconstitution_label_powershell(
+    batch_no: String,
+    expiry: String,
+    printer_name: String,
+    width_mm: f64,
+    height_mm: f64,
+    title_font_size: f64,
+    value_font_size: f64,
+    font_family: String,
+) -> Result<(), String> {
+    let _lock = PRINT_LOCK
+        .lock()
+        .map_err(|_| "Print queue error: lock poisoned".to_string())?;
+
+    let data = serde_json::json!({
+        "batchNo":        batch_no,
+        "expiry":         expiry,
+        "printerName":    printer_name,
+        "widthMm":        width_mm,
+        "heightMm":       height_mm,
+        "titleFontSize":  title_font_size,
+        "valueFontSize":  value_font_size,
+        "fontFamily":     font_family,
+    });
+
+    let temp_dir = std::env::temp_dir();
+    let data_path = temp_dir.join("sml_recon_print_data.json");
+    let script_path = temp_dir.join("sml_recon_print.ps1");
+
+    std::fs::write(&data_path, data.to_string().as_bytes())
+        .map_err(|e| format!("Failed to write print data: {}", e))?;
+
+    let data_path_fwd = data_path
+        .to_str()
+        .unwrap_or("")
+        .replace('\\', "/");
+
+    let script = build_ps_recon_print_script(&data_path_fwd);
+    std::fs::write(&script_path, script.as_bytes())
+        .map_err(|e| format!("Failed to write print script: {}", e))?;
+
+    let out = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script_path.to_str().unwrap_or(""),
+        ])
+        .output()
+        .map_err(|e| format!("Failed to launch PowerShell: {}", e))?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!("Native recon print error: {}", detail));
+    }
+
+    Ok(())
+}
+
 // ── GTIN label (QR code) print script ────────────────────────────────────────
 
 fn build_ps_gtin_label_script(data_path: &str) -> String {
@@ -676,6 +800,7 @@ pub fn run() {
             query_gtin_db,
             print_label_html,
             print_label_powershell,
+            print_reconstitution_label_powershell,
             print_gtin_label,
             list_printers,
             get_computer_name

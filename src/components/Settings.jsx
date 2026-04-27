@@ -19,7 +19,7 @@ const FLAG_LABELS = {
   enableSmallLabel:     'Small Label Print',
   enableReconstitution: 'Reconstitution',
   enableEV54Tools:      'EV54 Tools',
-  enableAbxTab:         '· ABX Preparation',
+  enableAbxTab:         '· Drug Reconstitution',
   enableExtempTab:      '· Extemporaneous',
   enablePrepackTab:     '· Prepack',
   enablePickListTab:    '· EV54 Pick List',

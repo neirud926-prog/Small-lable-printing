@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getAbxList, getActiveManufacturers, getExpiryRule, getSettings } from '../../utils/storage'
 import { addBatchRecord } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
-import { printLabel, buildSmallLabelHTML } from '../../utils/labelPrint'
+import { printReconstitutionLabel } from '../../utils/labelPrint'
 
 export default function AbxTab() {
   const [itemCode, setItemCode]       = useState('')
@@ -60,11 +60,10 @@ export default function AbxTab() {
     if (!manufacturer) { setError('Please select a manufacturer.'); return }
     if (!expiry) { setError('Could not calculate expiry — check expiry rules in Maintenance.'); return }
 
-    // Print small label (OP or IP) — one per vial/pack + 1 spare for the batch sheet
-    const labelType = ipopToggle === 'None' ? 'IP' : ipopToggle
-    const smallHtml = buildSmallLabelHTML(description, labelType, batchNo, expiry, itemCode, settings)
+    // Print Drug Reconstitution label — 50/50 split (Batch No / Use Before)
+    // One per vial/pack + 1 spare for the batch sheet
     const totalLabels = parseInt(factor) + 1
-    printLabel(smallHtml, totalLabels, settings)
+    printReconstitutionLabel(batchNo, expiry, totalLabels, settings)
 
     // Save batch record
     addBatchRecord({
@@ -91,7 +90,7 @@ export default function AbxTab() {
 
   return (
     <div className="card">
-      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--primary)' }}>ABX Preparation Label</div>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--primary)' }}>Drug Reconstitution Label</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="form-group">

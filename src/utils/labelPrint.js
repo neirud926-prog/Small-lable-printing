@@ -192,6 +192,115 @@ export function printLabel(labelHTML, copies = 1, settings = {}) {
   }
 }
 
+// ── Drug Reconstitution label (50/50 split: batch on top, expiry on bottom) ──
+function buildReconstitutionPageCSS(settings = {}) {
+  const w  = settings.labelWidth  || 34.4
+  const h  = settings.labelHeight || 25
+  const ff = settings.fontFamily  || 'Arial'
+  return `
+  @page { size: ${w}mm ${h}mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: ${w}mm; height: ${h}mm; overflow: hidden; }
+  body { font-family: ${ff}, sans-serif; }
+  @media print { html, body { width: ${w}mm; height: ${h}mm; } }
+  `
+}
+
+function buildReconstitutionFullPageHTML(labelHTML, settings) {
+  const css = buildReconstitutionPageCSS(settings)
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><style>${css}</style></head>
+<body>${labelHTML}</body>
+</html>`
+}
+
+function _enqueueReconstitutionIframe(labelHTML, settings) {
+  const w = settings.labelWidth  || 34.4
+  const h = settings.labelHeight || 25
+
+  _printQueue = _printQueue.then(() => new Promise(resolve => {
+    const iframe = document.createElement('iframe')
+    iframe.style.cssText =
+      `position:fixed;left:-9999px;top:-9999px;width:${w}mm;height:${h}mm;border:none;`
+    iframe.srcdoc = buildReconstitutionFullPageHTML(labelHTML, settings)
+    iframe.onload = () => {
+      iframe.contentWindow.focus()
+      iframe.contentWindow.print()
+      setTimeout(() => {
+        try { document.body.removeChild(iframe) } catch (_) {}
+        resolve()
+      }, 800)
+    }
+    document.body.appendChild(iframe)
+  }))
+}
+
+function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
+  const w = settings.labelWidth  || 34.4
+  const h = settings.labelHeight || 25
+  const css = buildReconstitutionPageCSS(settings)
+  const printerName = settings.printerName || ''
+
+  _printQueue = _printQueue.then(async () => {
+    try {
+      await invoke('print_reconstitution_label_powershell', {
+        batchNo,
+        expiry,
+        printerName,
+        widthMm:        w,
+        heightMm:       h,
+        titleFontSize:  settings.batchFontSize || 6,
+        valueFontSize:  (settings.drugFontSize || 8.5) + 0.5,
+        fontFamily:     settings.fontFamily    || 'Arial',
+      })
+      return
+    } catch (e) {
+      const msg = typeof e === 'string' ? e : (e?.message || String(e))
+      console.warn('[labelPrint] Native recon print failed, trying browser fallback:', msg)
+    }
+
+    invoke('print_label_html', { html: labelHTML, css, widthMm: w, heightMm: h, printerName })
+      .catch(e => {
+        const msg = typeof e === 'string' ? e : (e?.message || 'Print failed. Check printer connection.')
+        console.error('[labelPrint] Browser recon print error:', msg)
+        window.dispatchEvent(new CustomEvent('sml:print-error', { detail: msg }))
+      })
+  })
+}
+
+export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings = {}) {
+  const labelHTML = buildReconstitutionLabelHTML(batchNo, expiry, settings)
+  for (let i = 0; i < copies; i++) {
+    if (isTauri() && settings.silentPrint) {
+      _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings)
+    } else {
+      _enqueueReconstitutionIframe(labelHTML, settings)
+    }
+  }
+}
+
+export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}) {
+  const ff        = settings.fontFamily    || 'Arial'
+  const titlePt   = settings.batchFontSize || 6
+  const valuePt   = (settings.drugFontSize || 8.5) + 0.5
+  const half = `flex:1 1 50%;display:flex;flex-direction:column;justify-content:center;padding:0 1mm;overflow:hidden;`
+  const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;`
+  const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:bold;line-height:1.15;margin-top:0.5mm;`
+  return `
+    <div style="display:flex;flex-direction:column;width:100%;height:100%;">
+      <div style="${half}">
+        <div style="${title}">Batch No:</div>
+        <div style="${value}">${batchNo || ''}</div>
+      </div>
+      <div style="${half}">
+        <div style="${title}">Use Before:</div>
+        <div style="${value}">${expiry || ''}</div>
+      </div>
+    </div>
+  `
+}
+
 // ── Label HTML builders ───────────────────────────────────────────────────────
 
 // Small label (34.4mm × 25mm landscape)
