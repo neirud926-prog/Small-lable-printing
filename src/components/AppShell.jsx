@@ -5,11 +5,11 @@ import { useApp } from '../utils/AppContext'
 import UnlockDialog from './UnlockDialog'
 
 const ALL_NAV = [
-  { id: 'enquiry',       label: 'Drug Enquiry',      icon: 'search',     badge: '⌘K' },
+  { id: 'enquiry',       label: 'Drug Enquiry',      icon: 'search'     },
   { section: 'Work' },
-  { id: 'smalllabel',    label: 'Small Label Print', icon: 'tag',        badge: 'F1', flag: 'enableSmallLabel' },
-  { id: 'reconstitution',label: 'Reconstitution',    icon: 'pill',       badge: 'F2', flag: 'enableReconstitution' },
-  { id: 'ev54tools',     label: 'EV54 Tools',        icon: 'bot',        badge: 'F3', flag: 'enableEV54Tools' },
+  { id: 'smalllabel',    label: 'Small Label Print', icon: 'tag',        flag: 'enableSmallLabel' },
+  { id: 'reconstitution',label: 'Reconstitution',    icon: 'pill',       flag: 'enableReconstitution' },
+  { id: 'ev54tools',     label: 'EV54 Tools',        icon: 'bot',        flag: 'enableEV54Tools' },
   { section: 'Data' },
   { id: 'maintenance',   label: 'Maintenance',       icon: 'wrench',     flag: 'enableMaintenance' },
   { section: 'System' },
@@ -114,7 +114,6 @@ export default function AppShell({ view, onNav, children, onGlobalSearch }) {
                 if (e.key === 'Enter' && onGlobalSearch) onGlobalSearch(e.currentTarget.value)
               }}
             />
-            <kbd>⌘K</kbd>
           </div>
           <div className="top-actions">
             <span className="chip"><span className="dot" />IP/OP</span>

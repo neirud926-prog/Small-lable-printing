@@ -127,17 +127,35 @@ export function getTodayInUseBatches() {
 }
 
 // ── BATCH COUNTERS ────────────────────────────────────────────────────────────
-export function getBatchCounters()         { return load(KEYS.BATCH_COUNTERS, { EC: 1, IPOP: 1 }) }
-export function getCounter(location)       { return getBatchCounters()[location] || 1 }
+// Stored shape: { [location]: { date: 'YYMMDD', n: <int> } }
+// On a date-mismatch (or legacy numeric value) the counter resets to 1, so
+// the trailing two digits of every batch number restart at 01 each calendar day.
+function _todayYYMMDD() {
+  const d = new Date()
+  return String(d.getFullYear()).slice(-2)
+       + String(d.getMonth() + 1).padStart(2, '0')
+       + String(d.getDate()).padStart(2, '0')
+}
+export function getBatchCounters()         { return load(KEYS.BATCH_COUNTERS, {}) }
+export function getCounter(location)       {
+  const entry = getBatchCounters()[location]
+  if (!entry || typeof entry !== 'object' || entry.date !== _todayYYMMDD()) return 1
+  return entry.n || 1
+}
 export function incrementCounter(location) {
-  const c = getBatchCounters()
-  c[location] = (c[location] || 1) + 1
-  save(KEYS.BATCH_COUNTERS, c)
+  const all = getBatchCounters()
+  const today = _todayYYMMDD()
+  const entry = all[location]
+  const current = (entry && typeof entry === 'object' && entry.date === today)
+    ? (entry.n || 1)
+    : 1
+  all[location] = { date: today, n: current + 1 }
+  save(KEYS.BATCH_COUNTERS, all)
 }
 export function resetCounter(location, value) {
-  const c = getBatchCounters()
-  c[location] = parseInt(value, 10) || 1
-  save(KEYS.BATCH_COUNTERS, c)
+  const all = getBatchCounters()
+  all[location] = { date: _todayYYMMDD(), n: parseInt(value, 10) || 1 }
+  save(KEYS.BATCH_COUNTERS, all)
 }
 
 // ── ITEM LOCATIONS ────────────────────────────────────────────────────────────
@@ -188,6 +206,9 @@ export function getSettings() {
     drugFontBold:    true,
     batchFontSize:   5,
     signFontSize:    5,
+    // Drug Reconstitution label (50/50 split) — independent typography
+    reconTitleFontSize: 6,
+    reconValueFontSize: 9,
     // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
     barcodeMethod:   'gs1',
     // EV54 pick list: when true, reject codes not in the EV54 Drugs table.

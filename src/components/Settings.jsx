@@ -650,8 +650,24 @@ export default function Settings({ navigate }) {
               <span>Bold drug name</span>
             </label>
 
+            <div style={{ marginTop: 16, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>
+              Drug Reconstitution Label
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 6 }}>
+              <div className="form-group">
+                <label className="form-label">Recon Title Size (pt)</label>
+                <input className="form-input" type="number" step="0.5" value={settings.reconTitleFontSize ?? 6}
+                  onChange={e => set('reconTitleFontSize', parseFloat(e.target.value) || 6)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Recon Value Size (pt)</label>
+                <input className="form-input" type="number" step="0.5" value={settings.reconValueFontSize ?? 9}
+                  onChange={e => set('reconValueFontSize', parseFloat(e.target.value) || 9)} />
+              </div>
+            </div>
+
             <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · No padding
+              Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · Recon 6/9pt · No padding
             </div>
           </div>
 
