@@ -204,8 +204,15 @@ export function getSettings() {
     fontFamily:      'Arial',
     drugFontSize:    6,
     drugFontBold:    true,
+    expFontSize:     4.5,
+    expFontBold:     true,
     batchFontSize:   5,
+    batchFontBold:   false,          // bold the batch number value (label "Bat. No.:" stays bold)
     signFontSize:    5,
+    signFontBold:    true,
+    // Label text / styling
+    expiryLabel:     'Use before:',  // prefix shown on the IP expiry row
+    batchUnderline:  false,          // draw an underline under the batch number value
     // Drug Reconstitution label (50/50 split) — independent typography
     reconTitleFontSize: 6,
     reconValueFontSize: 9,

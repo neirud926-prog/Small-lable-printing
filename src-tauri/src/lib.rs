@@ -113,7 +113,10 @@ $pd.add_PrintPage({
     $wht = [System.Drawing.Brushes]::White
     $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 0.25)
 
-    $pl = 2.2; $pr = 2.2; $pt = 1.8; $pb = 1.4
+    $pl = [double]$d.padLeft
+    $pr = [double]$d.padRight
+    $pt = [double]$d.padTop
+    $pb = [double]$d.padBottom
     $w  = [double]$d.widthMm
     $h  = [double]$d.heightMm
 
@@ -146,25 +149,30 @@ $pd.add_PrintPage({
 
     # ── Expiry (IP labels only) ────────────────────────────────────────────────
     if ($hasExp) {
-        $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [Math]::Max([double]$d.signFontSize - 0.5, 4), [System.Drawing.FontStyle]::Bold)
-        $g.DrawString("Exp: $([string]$d.expiry)", $ef, $blk, $pl, $y)
+        $eStyle = if ([bool]$d.expFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+        $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.expFontSize, $eStyle)
+        $g.DrawString("$([string]$d.expiryLabel) $([string]$d.expiry)", $ef, $blk, $pl, $y)
         $y += $expH
     }
 
     # ── Batch No ───────────────────────────────────────────────────────────────
     $bfBold   = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize, [System.Drawing.FontStyle]::Bold)
-    $bfNormal = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize)
+    $bvStyle  = if ([bool]$d.batchFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $bfValue  = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.batchFontSize, $bvStyle)
     $bSz    = $g.MeasureString("Bat. No.:", $bfBold)
     $batX   = $pl + $bSz.Width
     $charHB = [double]$d.batchFontSize * 0.353
     $lineY  = $y + 0.4 + $charHB * 0.85
-    $g.DrawString("Bat. No.:", $bfBold,   $blk, $pl,   ($y + 0.4))
-    $g.DrawString([string]$d.batchNo, $bfNormal, $blk, $batX, ($y + 0.4))
-    $g.DrawLine($pen, $batX, $lineY, ($w - $pr), $lineY)
+    $g.DrawString("Bat. No.:", $bfBold,  $blk, $pl,   ($y + 0.4))
+    $g.DrawString([string]$d.batchNo, $bfValue, $blk, $batX, ($y + 0.4))
+    if ([bool]$d.batchUnderline) {
+        $g.DrawLine($pen, $batX, $lineY, ($w - $pr), $lineY)
+    }
     $y += $batchH
 
     # ── Footer: Packed by / Checked by ────────────────────────────────────────
-    $sfont = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.signFontSize, [System.Drawing.FontStyle]::Bold)
+    $sStyle = if ([bool]$d.signFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $sfont = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.signFontSize, $sStyle)
     $halfW = ($w - $pl - $pr) / 2.0
 
     # Place the underline right at the text baseline.
@@ -508,6 +516,16 @@ fn print_label_powershell(
     sign_font_size: f64,
     font_family: String,
     drug_font_bold: bool,
+    pad_left: f64,
+    pad_right: f64,
+    pad_top: f64,
+    pad_bottom: f64,
+    expiry_label: String,
+    batch_underline: bool,
+    exp_font_size: f64,
+    exp_font_bold: bool,
+    batch_font_bold: bool,
+    sign_font_bold: bool,
 ) -> Result<(), String> {
     let _lock = PRINT_LOCK
         .lock()
@@ -529,6 +547,16 @@ fn print_label_powershell(
         "signFontSize":   sign_font_size,
         "fontFamily":     font_family,
         "drugFontBold":   drug_font_bold,
+        "padLeft":        pad_left,
+        "padRight":       pad_right,
+        "padTop":         pad_top,
+        "padBottom":      pad_bottom,
+        "expiryLabel":    expiry_label,
+        "batchUnderline": batch_underline,
+        "expFontSize":    exp_font_size,
+        "expFontBold":    exp_font_bold,
+        "batchFontBold":  batch_font_bold,
+        "signFontBold":   sign_font_bold,
     });
 
     let temp_dir = std::env::temp_dir();
