@@ -7,6 +7,7 @@ import { isConnected as isFileConnected, getFileName, disconnect as fileDisconne
 import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
 import { autoLoad, refreshSource } from '../utils/dataLoader'
 import Icon from './Icon'
+import LabelPreview from './LabelPreview'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
@@ -47,6 +48,10 @@ export default function Settings({ navigate }) {
   const [refreshingKey, setRefreshingKey] = useState(null)
   const [rowMsg,        setRowMsg]       = useState({})
   const [printers,      setPrinters]     = useState([])
+  const [previewCode,   setPreviewCode]   = useState('')
+  const [previewBatch,  setPreviewBatch]  = useState('ABC-12345678')
+  const [previewExpiry, setPreviewExpiry] = useState('dd-mmm-yyyy')
+  const [previewType,   setPreviewType]   = useState('small')
   const [profiles,      setProfiles]     = useState(getComputerProfiles)
   const { computerName, refreshFlags }   = useApp()
 
@@ -357,11 +362,222 @@ export default function Settings({ navigate }) {
       {/* Tab bar */}
       <div className="tabs mb-12" style={{ display: 'inline-flex', width: 'auto' }}>
         <button className={`tab-btn ${settingsTab === 'general' ? 'active' : ''}`} onClick={() => setSettingsTab('general')}>General</button>
+        <button className={`tab-btn ${settingsTab === 'label'   ? 'active' : ''}`} onClick={() => setSettingsTab('label')}>Label Layout</button>
         <button className={`tab-btn ${settingsTab === 'admin'   ? 'active' : ''}`} onClick={() => setSettingsTab('admin')}>Admin</button>
       </div>
 
       {/* Admin tab */}
       {settingsTab === 'admin' && adminContent}
+
+      {/* Label Layout tab */}
+      {settingsTab === 'label' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn btn-primary btn-sm" onClick={handleSave}>
+              {saved ? '✓ Saved' : 'Save settings'}
+            </button>
+          </div>
+
+          {/* Live preview — switch tab between Small label and Drug Reconstitution */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginRight: 8 }}>👁️ Live Preview</div>
+              <div className="tabs" style={{ display: 'inline-flex', width: 'auto' }}>
+                <button className={`tab-btn ${previewType === 'small' ? 'active' : ''}`} onClick={() => setPreviewType('small')}>Small label</button>
+                <button className={`tab-btn ${previewType === 'recon' ? 'active' : ''}`} onClick={() => setPreviewType('recon')}>Drug Reconstitution</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 10 }}>
+              {previewType === 'small' && (
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label" style={{ fontSize: 11 }}>Item Code</label>
+                  <input
+                    className="form-input"
+                    style={{ fontFamily: 'monospace' }}
+                    placeholder="e.g. AUGM06, PHEN18"
+                    value={previewCode}
+                    onChange={e => setPreviewCode(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Batch No.</label>
+                <input
+                  className="form-input"
+                  style={{ fontFamily: 'monospace' }}
+                  value={previewBatch}
+                  onChange={e => setPreviewBatch(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ fontSize: 11 }}>Use before</label>
+                <input
+                  className="form-input"
+                  style={{ fontFamily: 'monospace' }}
+                  value={previewExpiry}
+                  onChange={e => setPreviewExpiry(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <LabelPreview
+              settings={settings}
+              type={previewType}
+              itemCode={previewCode}
+              batchNo={previewBatch}
+              expiry={previewExpiry}
+            />
+          </div>
+
+          {/* Label Dimensions & Typography */}
+          <div className="card">
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷️ Label Dimensions & Typography</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+              Adjust these if your printed labels don't fill the label stock correctly.
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div className="form-group">
+                <label className="form-label">Label Width (mm)</label>
+                <input className="form-input" type="number" step="0.1" value={settings.labelWidth ?? 34.4}
+                  onChange={e => set('labelWidth', parseFloat(e.target.value) || 34.4)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Label Height (mm)</label>
+                <input className="form-input" type="number" step="0.1" value={settings.labelHeight ?? 25}
+                  onChange={e => set('labelHeight', parseFloat(e.target.value) || 25)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Font Family</label>
+                <select className="form-select" value={settings.fontFamily || 'Arial'}
+                  onChange={e => set('fontFamily', e.target.value)}>
+                  {['Arial', 'Helvetica', 'Calibri', 'Tahoma', 'Verdana', 'Courier New', 'Times New Roman'].map(f =>
+                    <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {previewType === 'small' && (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div className="form-group">
+                    <label className="form-label">Pad Top (mm)</label>
+                    <input className="form-input" type="number" step="0.1" value={settings.labelPadTop ?? 0}
+                      onChange={e => set('labelPadTop', parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Pad Bottom (mm)</label>
+                    <input className="form-input" type="number" step="0.1" value={settings.labelPadBottom ?? 0}
+                      onChange={e => set('labelPadBottom', parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Pad Left (mm)</label>
+                    <input className="form-input" type="number" step="0.1" value={settings.labelPadLeft ?? 0}
+                      onChange={e => set('labelPadLeft', parseFloat(e.target.value) || 0)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Pad Right (mm)</label>
+                    <input className="form-input" type="number" step="0.1" value={settings.labelPadRight ?? 0}
+                      onChange={e => set('labelPadRight', parseFloat(e.target.value) || 0)} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Per-row Typography
+                </div>
+                {[
+                  { row: '1. Drug name',    sizeKey: 'drugFontSize',  sizeDefault: 6,   boldKey: 'drugFontBold',  boldDefaultTrue: true  },
+                  { row: '2. Use before',   sizeKey: 'expFontSize',   sizeDefault: 4.5, boldKey: 'expFontBold',   boldDefaultTrue: true  },
+                  { row: '3. Batch No.',    sizeKey: 'batchFontSize', sizeDefault: 5,   boldKey: 'batchFontBold', boldDefaultTrue: false },
+                  { row: '4. Packed/Sign',  sizeKey: 'signFontSize',  sizeDefault: 5,   boldKey: 'signFontBold',  boldDefaultTrue: true  },
+                ].map(({ row, sizeKey, sizeDefault, boldKey, boldDefaultTrue }) => {
+                  const boldChecked = boldDefaultTrue
+                    ? settings[boldKey] !== false
+                    : !!settings[boldKey]
+                  return (
+                    <div key={sizeKey} style={{
+                      display: 'grid', gridTemplateColumns: '160px 1fr 110px',
+                      gap: 12, alignItems: 'center', marginTop: 8,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{row}</div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <input className="form-input" type="number" step="0.5"
+                          value={settings[sizeKey] ?? sizeDefault}
+                          onChange={e => set(sizeKey, parseFloat(e.target.value) || sizeDefault)} />
+                      </div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox"
+                          checked={boldChecked}
+                          onChange={e => set(boldKey, e.target.checked)} />
+                        <span>Bold</span>
+                      </label>
+                    </div>
+                  )
+                })}
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 12 }}>
+                  <input type="checkbox" checked={!!settings.batchUnderline}
+                    onChange={e => set('batchUnderline', e.target.checked)} />
+                  <span>Underline batch number</span>
+                </label>
+
+                <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Exp 4.5pt bold · Batch 5pt · Sign 5pt bold · No padding · No batch underline
+                </div>
+              </>
+            )}
+
+            {previewType === 'recon' && (
+              <>
+                <div style={{ marginTop: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Drug Reconstitution Label
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 6 }}>
+                  <div className="form-group">
+                    <label className="form-label">Recon Title Size (pt)</label>
+                    <input className="form-input" type="number" step="0.5" value={settings.reconTitleFontSize ?? 6}
+                      onChange={e => set('reconTitleFontSize', parseFloat(e.target.value) || 6)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Recon Value Size (pt)</label>
+                    <input className="form-input" type="number" step="0.5" value={settings.reconValueFontSize ?? 9}
+                      onChange={e => set('reconValueFontSize', parseFloat(e.target.value) || 9)} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
+                  Default: 34.4 × 25 mm · Arial · Title 6pt · Value 9pt bold · 50/50 split (Batch top, Use Before bottom)
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* GTIN QR Label */}
+          <div className="card">
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷 GTIN QR Label</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="form-group">
+                <label className="form-label">
+                  QR Code Size (mm) <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(0 = auto)</span>
+                </label>
+                <input className="form-input" type="number" step="0.5" min="0"
+                  value={settings.gtinQrSizeMm ?? 0}
+                  onChange={e => set('gtinQrSizeMm', parseFloat(e.target.value) || 0)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Item Code Font Size (pt)</label>
+                <input className="form-input" type="number" step="0.5" min="3"
+                  value={settings.gtinItemCodeFontSize ?? 5}
+                  onChange={e => set('gtinItemCodeFontSize', parseFloat(e.target.value) || 5)} />
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+              Default: QR fills the label automatically · Item code 5pt Arial
+            </div>
+          </div>
+        </>
+      )}
 
       {/* General tab */}
       {settingsTab === 'general' && (
@@ -572,126 +788,6 @@ export default function Settings({ navigate }) {
                   </div>
                 </label>
               ))}
-            </div>
-          </div>
-
-          {/* Label Dimensions & Typography */}
-          <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷️ Label Dimensions & Typography</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-              Adjust these if your printed labels don't fill the label stock correctly.
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div className="form-group">
-                <label className="form-label">Label Width (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelWidth ?? 34.4}
-                  onChange={e => set('labelWidth', parseFloat(e.target.value) || 34.4)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Label Height (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelHeight ?? 25}
-                  onChange={e => set('labelHeight', parseFloat(e.target.value) || 25)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Font Family</label>
-                <select className="form-select" value={settings.fontFamily || 'Arial'}
-                  onChange={e => set('fontFamily', e.target.value)}>
-                  {['Arial', 'Helvetica', 'Calibri', 'Tahoma', 'Verdana', 'Courier New', 'Times New Roman'].map(f =>
-                    <option key={f} value={f}>{f}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-              <div className="form-group">
-                <label className="form-label">Pad Top (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelPadTop ?? 0}
-                  onChange={e => set('labelPadTop', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Pad Bottom (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelPadBottom ?? 0}
-                  onChange={e => set('labelPadBottom', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Pad Left (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelPadLeft ?? 0}
-                  onChange={e => set('labelPadLeft', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Pad Right (mm)</label>
-                <input className="form-input" type="number" step="0.1" value={settings.labelPadRight ?? 0}
-                  onChange={e => set('labelPadRight', parseFloat(e.target.value) || 0)} />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              <div className="form-group">
-                <label className="form-label">Drug Name Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" value={settings.drugFontSize ?? 6}
-                  onChange={e => set('drugFontSize', parseFloat(e.target.value) || 6)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Batch No. Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" value={settings.batchFontSize ?? 5}
-                  onChange={e => set('batchFontSize', parseFloat(e.target.value) || 5)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Signature Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" value={settings.signFontSize ?? 5}
-                  onChange={e => set('signFontSize', parseFloat(e.target.value) || 5)} />
-              </div>
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer', marginTop: 4 }}>
-              <input type="checkbox" checked={settings.drugFontBold !== false}
-                onChange={e => set('drugFontBold', e.target.checked)} />
-              <span>Bold drug name</span>
-            </label>
-
-            <div style={{ marginTop: 16, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>
-              Drug Reconstitution Label
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 6 }}>
-              <div className="form-group">
-                <label className="form-label">Recon Title Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" value={settings.reconTitleFontSize ?? 6}
-                  onChange={e => set('reconTitleFontSize', parseFloat(e.target.value) || 6)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Recon Value Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" value={settings.reconValueFontSize ?? 9}
-                  onChange={e => set('reconValueFontSize', parseFloat(e.target.value) || 9)} />
-              </div>
-            </div>
-
-            <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-              Default: 34.4 × 25 mm · Arial · Drug 6pt bold · Batch 5pt · Sign 5pt · Recon 6/9pt · No padding
-            </div>
-          </div>
-
-          {/* GTIN QR Label */}
-          <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>🏷 GTIN QR Label</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div className="form-group">
-                <label className="form-label">
-                  QR Code Size (mm) <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(0 = auto)</span>
-                </label>
-                <input className="form-input" type="number" step="0.5" min="0"
-                  value={settings.gtinQrSizeMm ?? 0}
-                  onChange={e => set('gtinQrSizeMm', parseFloat(e.target.value) || 0)} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Item Code Font Size (pt)</label>
-                <input className="form-input" type="number" step="0.5" min="3"
-                  value={settings.gtinItemCodeFontSize ?? 5}
-                  onChange={e => set('gtinItemCodeFontSize', parseFloat(e.target.value) || 5)} />
-              </div>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
-              Default: QR fills the label automatically · Item code 5pt Arial
             </div>
           </div>
 
