@@ -45,24 +45,26 @@ const GS1_VARIABLE = new Set([
  * When a variable-length field has no FNC1 terminator, scan forward from
  * startPos looking for the next plausible AI boundary.
  *
- * Accepts:
- *   - Date AIs 11 / 15 / 17  — only when followed by a valid YYMMDD date
- *     (month 01-12, day 00-31). This prevents false positives where the
- *     batch data happens to contain "11" or "17" as digit pairs.
- *   - Serial AI 21
- *   - Company-internal AIs 90-99 (no validation needed)
+ * Two-pass scan:
+ *   1. Prefer date AIs 11 / 15 / 17 with a valid YYMMDD that follows
+ *      (month 01-12, day 00-31). The validation makes these reliable.
+ *   2. Fall back to looser AI patterns (21, 90-99) only if no date AI is
+ *      found. Done as a second pass so that a stray "21" or "9X" digit
+ *      pair inside the batch can't pre-empt the real expiry AI a few
+ *      positions later.
  *
  * Returns the index within s of the next AI start, or -1 if not found.
  *
- * Example: "A520005A11727123190HK-28748"
- *   pos 8 → "11" with date "727123" → MM=71 INVALID → skip
- *   pos 9 → "17" with date "271231" → MM=12 DD=31 VALID → return 9  ✓
+ * Examples (batch portion shown):
+ *   "A520005A11727123190HK-28748"  — pass 1 finds "17" at pos 9 (271231 valid)
+ *   "25R0891728070190HK-45024"     — pass 1 finds "17" at pos 6 (280701 valid),
+ *                                    NOT "91" at pos 5
+ *   "5616005A21728083190HK-54320"  — pass 1 finds "17" at pos 9 (280831 valid),
+ *                                    NOT "21" at pos 8
  */
 function findNextAIBoundary(s, startPos) {
   for (let pos = startPos; pos < s.length - 1; pos++) {
     const ai = s.substring(pos, pos + 2)
-
-    // Date AIs: validate the 6-char YYMMDD that follows
     if (ai === '11' || ai === '15' || ai === '17') {
       if (pos + 8 <= s.length) {
         const mm = parseInt(s.substring(pos + 4, pos + 6), 10)
@@ -70,9 +72,10 @@ function findNextAIBoundary(s, startPos) {
         if (mm >= 1 && mm <= 12 && dd >= 0 && dd <= 31) return pos
       }
     }
-    // Company-internal AIs 90-99 — always a valid boundary
+  }
+  for (let pos = startPos; pos < s.length - 1; pos++) {
+    const ai = s.substring(pos, pos + 2)
     if (/^9[0-9]$/.test(ai)) return pos
-    // Serial number
     if (ai === '21') return pos
   }
   return -1
