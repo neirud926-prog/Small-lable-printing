@@ -5,9 +5,8 @@ Target: Windows pharmacy workstations.
 
 ## Repository
 - GitHub: `neirud926-prog/Small-lable-printing`
-- **Always develop on branch: `claude/tauri-remote-build-IdhJ7`**
-- Merge to `main` via PR — GitHub Actions then builds `release/SmallLabelPrinting.exe`
-- CI note: squash-merge commits that include `[skip ci]` in the body will skip the build;
+- **Always commit and push to `main`** — GitHub Actions then builds `release/SmallLabelPrinting.exe`
+- CI note: commits that include `[skip ci]` in the body will skip the build;
   push a plain source-file change to `main` to re-trigger if needed.
 
 ## Stack
