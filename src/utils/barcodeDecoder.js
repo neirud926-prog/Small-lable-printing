@@ -53,6 +53,14 @@ const GS1_VARIABLE = new Set([
  *      pair inside the batch can't pre-empt the real expiry AI a few
  *      positions later.
  *
+ * Pass 2 also requires the candidate AI to have plausible data after it:
+ *   - at least one non-digit character within the next 5 positions, OR
+ *     the trailing data is at least 4 chars long.
+ * AI 90-99 / 21 in real pharma barcodes (e.g. "90HK-28748") almost always
+ * contain non-digit characters; a pure numeric tail is more likely part of
+ * the lot number itself. This guard prevents false matches like the "90"
+ * at the end of lot "M2600590".
+ *
  * Returns the index within s of the next AI start, or -1 if not found.
  *
  * Examples (batch portion shown):
@@ -61,6 +69,8 @@ const GS1_VARIABLE = new Set([
  *                                    NOT "91" at pos 5
  *   "5616005A21728083190HK-54320"  — pass 1 finds "17" at pos 9 (280831 valid),
  *                                    NOT "21" at pos 8
+ *   "M2600590" (after EXP)         — pass 1 finds nothing; pass 2 rejects "90"
+ *                                    at the tail (no data after AI)
  */
 function findNextAIBoundary(s, startPos) {
   for (let pos = startPos; pos < s.length - 1; pos++) {
@@ -75,8 +85,12 @@ function findNextAIBoundary(s, startPos) {
   }
   for (let pos = startPos; pos < s.length - 1; pos++) {
     const ai = s.substring(pos, pos + 2)
-    if (/^9[0-9]$/.test(ai)) return pos
-    if (ai === '21') return pos
+    if (!/^9[0-9]$/.test(ai) && ai !== '21') continue
+    const dataLen = s.length - (pos + 2)
+    if (dataLen < 1) continue
+    const lookahead = s.substring(pos + 2, Math.min(pos + 7, s.length))
+    if (dataLen < 4 && !/\D/.test(lookahead)) continue
+    return pos
   }
   return -1
 }
