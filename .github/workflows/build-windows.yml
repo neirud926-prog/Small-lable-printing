@@ -119,13 +119,31 @@ jobs:
           git add release\
 
           $staged = git diff --cached --name-only
-          if ($staged) {
-            Write-Host "Committing updated artifacts:`n$staged"
-            git commit -m "chore: update Windows release artifacts [skip ci]"
-            # Pull latest main first to avoid race conditions, then push
-            git pull --rebase origin main
-            git push origin HEAD:main
-            Write-Host "Done — artifacts pushed to main."
-          } else {
+          if (-not $staged) {
             Write-Host "Artifacts unchanged — nothing to commit."
+            exit 0
           }
+
+          Write-Host "Committing updated artifacts:`n$staged"
+          git commit -m "chore: update Windows release artifacts [skip ci]"
+          if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
+
+          # Retry rebase + push in case a human pushes to main during the build.
+          # The race window between pull --rebase and push is small but real,
+          # and a non-fast-forward rejection here would discard the artifacts.
+          $maxAttempts = 5
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            git pull --rebase origin main
+            if ($LASTEXITCODE -ne 0) {
+              git rebase --abort 2>$null
+              throw "git pull --rebase failed (attempt $i)"
+            }
+            git push origin HEAD:main
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Done — artifacts pushed to main (attempt $i)."
+              exit 0
+            }
+            Write-Warning "Push rejected (attempt $i/$maxAttempts) — retrying after backoff."
+            Start-Sleep -Seconds ([Math]::Pow(2, $i))
+          }
+          throw "Failed to push artifacts to main after $maxAttempts attempts."
