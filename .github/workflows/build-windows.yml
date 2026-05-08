@@ -85,13 +85,18 @@ jobs:
             Write-Warning "NSIS installer not found under src-tauri\target\release\bundle\nsis\"
           }
 
-          # MSI installer (keep versioned filename)
+          # MSI installer — strip the "NLTH " productName prefix so the
+          # filename matches the NSIS exe and has no space. Wipe any stale
+          # MSIs first so a productName change doesn't leave old filenames
+          # tracked in the repo.
+          Remove-Item release\*.msi -Force -ErrorAction SilentlyContinue
           $msi = Get-ChildItem -Path "src-tauri\target\release\bundle\msi" `
                    -Filter "*.msi" -ErrorAction SilentlyContinue |
                    Select-Object -First 1
           if ($msi) {
-            Copy-Item $msi.FullName "release\$($msi.Name)" -Force
-            Write-Host "Copied MSI installer:  $($msi.Name)  ($([math]::Round($msi.Length/1MB, 1)) MB)"
+            $cleanName = $msi.Name -replace '^NLTH ', ''
+            Copy-Item $msi.FullName "release\$cleanName" -Force
+            Write-Host "Copied MSI installer:  $cleanName  ($([math]::Round($msi.Length/1MB, 1)) MB)"
           } else {
             Write-Warning "MSI installer not found under src-tauri\target\release\bundle\msi\"
           }
@@ -116,7 +121,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add release\
+          git add --all release\
 
           $staged = git diff --cached --name-only
           if (-not $staged) {

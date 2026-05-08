@@ -45,15 +45,21 @@ const GS1_VARIABLE = new Set([
  * When a variable-length field has no FNC1 terminator, scan forward from
  * startPos looking for the next plausible AI boundary.
  *
- * Two-pass scan:
+ * Three-pass scan:
  *   1. Prefer date AIs 11 / 15 / 17 with a valid YYMMDD that follows
  *      (month 01-12, day 00-31). The validation makes these reliable.
- *   2. Fall back to looser AI patterns (21, 90-99) only if no date AI is
- *      found. Done as a second pass so that a stray "21" or "9X" digit
- *      pair inside the batch can't pre-empt the real expiry AI a few
+ *   2. HK-pharma AI 90 marker "9[0-9][A-Z]{2}-" (e.g. "90HK-"). The two
+ *      letters + dash are characteristic of HK-pharma company-internal
+ *      data and extremely unlikely to appear inside a lot number, so this
+ *      is a high-confidence boundary. Needed for barcodes like
+ *      "M260059090HK-65270" where the lot ends in "90" — pass 3 alone
+ *      would mis-cut at the lot's trailing "90".
+ *   3. Fall back to looser AI patterns (21, 90-99) only if neither of
+ *      the above match. Done last so a stray "21" or "9X" digit pair
+ *      inside the batch can't pre-empt the real expiry AI a few
  *      positions later.
  *
- * Pass 2 also requires the candidate AI to have plausible data after it:
+ * Pass 3 also requires the candidate AI to have plausible data after it:
  *   - at least one non-digit character within the next 5 positions, OR
  *     the trailing data is at least 4 chars long.
  * AI 90-99 / 21 in real pharma barcodes (e.g. "90HK-28748") almost always
@@ -69,8 +75,11 @@ const GS1_VARIABLE = new Set([
  *                                    NOT "91" at pos 5
  *   "5616005A21728083190HK-54320"  — pass 1 finds "17" at pos 9 (280831 valid),
  *                                    NOT "21" at pos 8
- *   "M2600590" (after EXP)         — pass 1 finds nothing; pass 2 rejects "90"
- *                                    at the tail (no data after AI)
+ *   "M260059090HK-65270"           — pass 1 finds nothing; pass 2 finds "90HK-"
+ *                                    at pos 8 (lot "M2600590"), NOT "90" at
+ *                                    pos 6 (which is the lot's trailing "90")
+ *   "M2600590" (after EXP)         — pass 1, 2 find nothing; pass 3 rejects
+ *                                    "90" at the tail (no data after AI)
  */
 function findNextAIBoundary(s, startPos) {
   for (let pos = startPos; pos < s.length - 1; pos++) {
@@ -82,6 +91,9 @@ function findNextAIBoundary(s, startPos) {
         if (mm >= 1 && mm <= 12 && dd >= 0 && dd <= 31) return pos
       }
     }
+  }
+  for (let pos = startPos; pos + 5 <= s.length; pos++) {
+    if (/^9[0-9][A-Z]{2}-/.test(s.substring(pos, pos + 5))) return pos
   }
   for (let pos = startPos; pos < s.length - 1; pos++) {
     const ai = s.substring(pos, pos + 2)
