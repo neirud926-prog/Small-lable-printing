@@ -129,13 +129,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "git commit failed" }
 
           # Retry rebase + push in case a human pushes to main during the build.
-          # The race window between pull --rebase and push is small but real,
-          # and a non-fast-forward rejection here would discard the artifacts.
+          # `--autostash` is required because Windows checkouts often leave
+          # tracked text files looking dirty (CRLF normalisation), which would
+          # otherwise make `pull --rebase` abort with "unstaged changes".
           $maxAttempts = 5
           for ($i = 1; $i -le $maxAttempts; $i++) {
-            git pull --rebase origin main
+            Write-Host "── Attempt $i — git status before rebase ──"
+            git status --short
+            git pull --rebase --autostash origin main
             if ($LASTEXITCODE -ne 0) {
               git rebase --abort 2>$null
+              git stash pop 2>$null
               throw "git pull --rebase failed (attempt $i)"
             }
             git push origin HEAD:main
