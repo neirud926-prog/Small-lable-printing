@@ -89,6 +89,7 @@ export default function SmallLabelPrint({ navigate }) {
   const [itemCode, setItemCode]     = useState('')
   const [showIPOP, setShowIPOP]     = useState(false)
   const [pendingBarcode, setPendingBarcode] = useState(null)
+  const [fromGtinScan, setFromGtinScan] = useState(false)
   const [error, setError]           = useState('')
   const [success, setSuccess]       = useState(false)
   const inputRef   = useRef(null)
@@ -101,6 +102,7 @@ export default function SmallLabelPrint({ navigate }) {
 
   const clearLabel = () => {
     setDrugName(''); setIpop(''); setLot(''); setExp(''); setItemCode(''); setError('')
+    setFromGtinScan(false)
   }
 
   const autoPrintLabel = (drug, ipopType, lotVal, expVal) => {
@@ -116,7 +118,7 @@ export default function SmallLabelPrint({ navigate }) {
     }, 400)
   }
 
-  const resolveLabel = (code, ipopType, lotVal, expVal) => {
+  const resolveLabel = (code, ipopType, lotVal, expVal, gtinScan = false) => {
     const drug = findDrugByCode(code)
     if (!drug) {
       setError(`Drug not found (${code}). Import your drug list via Maintenance → Import Excel → Drugs (PHQ).`)
@@ -127,14 +129,23 @@ export default function SmallLabelPrint({ navigate }) {
     setIpop(ipopType)
     setLot(lotVal || '')
     setExp(expVal || '')
+    setFromGtinScan(gtinScan)
     setError('')
 
     // Auto-print when we have everything needed:
-    //   OP → always fine (no exp needed)
-    //   IP → only if exp is present (from barcode). Otherwise show form so user can type it.
+    //   Manual entry (6-char / 13-char) → preserve original behaviour: OP auto-prints
+    //   regardless of lot, IP auto-prints if exp present.
+    //   GTIN scan → require both lot and exp (for IP); if either missing, leave the
+    //   form open so the user can fill them in.
     const hasExp = expVal && expVal !== 'na----'
-    if (ipopType === 'OP' || (ipopType === 'IP' && hasExp)) {
-      autoPrintLabel(drug, ipopType, lotVal, expVal)
+    const hasLot = lotVal && lotVal !== 'na----'
+    if (gtinScan) {
+      const ready = ipopType === 'IP' ? (hasExp && hasLot) : hasLot
+      if (ready) autoPrintLabel(drug, ipopType, lotVal, expVal)
+    } else {
+      if (ipopType === 'OP' || (ipopType === 'IP' && hasExp)) {
+        autoPrintLabel(drug, ipopType, lotVal, expVal)
+      }
     }
   }
 
@@ -184,7 +195,7 @@ export default function SmallLabelPrint({ navigate }) {
     // IP label: include expiry date from barcode.
     // OP label: lot/batch only — no expiry on label.
     const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
-    resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
+    resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted, true)
     setPendingBarcode(null)
   }
 
@@ -332,7 +343,22 @@ export default function SmallLabelPrint({ navigate }) {
                         </div>
                       )}
                       {ipop !== 'IP' && exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
-                      {lot && lot !== 'na----' && <div style={{ fontSize: 13 }}>Batch: <strong>{lot}</strong></div>}
+                      {fromGtinScan ? (
+                        <div style={{ marginTop: 8 }}>
+                          <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                            Lot / batch number {(!lot || lot === 'na----') && <span style={{ color: 'var(--danger)' }}>(missing from barcode — please enter)</span>}
+                          </label>
+                          <input
+                            className="form-input"
+                            style={{ width: 200, fontSize: 13, fontFamily: 'monospace' }}
+                            placeholder="Type the lot / batch number"
+                            value={lot && lot !== 'na----' ? lot : ''}
+                            onChange={e => setLot(e.target.value)}
+                          />
+                        </div>
+                      ) : (
+                        lot && lot !== 'na----' && <div style={{ fontSize: 13 }}>Batch: <strong>{lot}</strong></div>
+                      )}
                       <div style={{ marginTop: 16 }}>
                         <button className="btn btn-primary" onClick={handlePrint}>🖨 Print Label</button>
                         <button className="btn btn-ghost btn-sm" style={{ marginLeft: 8 }} onClick={clearLabel}>Clear</button>

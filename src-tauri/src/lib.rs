@@ -232,8 +232,10 @@ $pd.add_PrintPage({
 
     $titlePt = [double]$d.titleFontSize
     $valuePt = [double]$d.valueFontSize
-    $titleFont = New-Object System.Drawing.Font([string]$d.fontFamily, $titlePt, [System.Drawing.FontStyle]::Regular)
-    $valueFont = New-Object System.Drawing.Font([string]$d.fontFamily, $valuePt, [System.Drawing.FontStyle]::Bold)
+    $titleStyle = if ([bool]$d.titleFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $valueStyle = if ([bool]$d.valueFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $titleFont = New-Object System.Drawing.Font([string]$d.fontFamily, $titlePt, $titleStyle)
+    $valueFont = New-Object System.Drawing.Font([string]$d.fontFamily, $valuePt, $valueStyle)
 
     $titleH = $titlePt * 0.353 * 1.25
     $valueH = $valuePt * 0.353 * 1.25
@@ -269,7 +271,9 @@ fn print_reconstitution_label_powershell(
     width_mm: f64,
     height_mm: f64,
     title_font_size: f64,
+    title_font_bold: bool,
     value_font_size: f64,
+    value_font_bold: bool,
     font_family: String,
 ) -> Result<(), String> {
     let _lock = PRINT_LOCK
@@ -283,7 +287,9 @@ fn print_reconstitution_label_powershell(
         "widthMm":        width_mm,
         "heightMm":       height_mm,
         "titleFontSize":  title_font_size,
+        "titleFontBold":  title_font_bold,
         "valueFontSize":  value_font_size,
+        "valueFontBold":  value_font_bold,
         "fontFamily":     font_family,
     });
 

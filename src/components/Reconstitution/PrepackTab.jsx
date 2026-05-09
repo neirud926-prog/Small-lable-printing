@@ -11,7 +11,6 @@ export default function PrepackTab() {
   const [description, setDescription] = useState('')
   const [strength, setStrength]       = useState('')
   const [unit, setUnit]               = useState('MG')
-  const [usePrefix, setUsePrefix]     = useState(true)
   const [batchNo, setBatchNo]         = useState('')
   const [expiry, setExpiry]           = useState('')
   const [customExpiry, setCustomExpiry] = useState('')
@@ -34,8 +33,8 @@ export default function PrepackTab() {
       setExpiry(formatDateLabel(d))
     }
     const prefix = item ? item.prefix : ''
-    setBatchNo(generateBatchNo(storageKey, prefix, usePrefix && !!prefix))
-  }, [drugCode, usePrefix])
+    setBatchNo(generateBatchNo(storageKey, prefix, !!prefix))
+  }, [drugCode])
 
   const finalDescription = description + (strength ? ` ${strength}${unit}` : '')
 
@@ -113,11 +112,6 @@ export default function PrepackTab() {
           <input className="form-input" type="number" min={1} value={labelCount} onChange={e => setLabelCount(e.target.value)} />
         </div>
       </div>
-
-      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer', marginBottom: 14 }}>
-        <input type="checkbox" checked={usePrefix} onChange={e => setUsePrefix(e.target.checked)} />
-        Include prefix in batch no.
-      </label>
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14, fontSize: 13 }}>
         <div>Batch No: <strong style={{ fontFamily: 'monospace' }}>{batchNo || '—'}</strong></div>
