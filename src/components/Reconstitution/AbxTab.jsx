@@ -3,14 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getAbxList, getActiveManufacturers, getExpiryRule, getSettings } from '../../utils/storage'
 import { addBatchRecord } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
-import { printReconstitutionLabel } from '../../utils/labelPrint'
+import { printReconstitutionLabel, printLabel, buildSmallLabelHTML } from '../../utils/labelPrint'
 
 export default function AbxTab() {
   const [itemCode, setItemCode]       = useState('')
   const [description, setDescription] = useState('')
   const [manufacturers, setManufacturers] = useState([])
   const [manufacturer, setManufacturer]   = useState('')
-  const [usePrefix, setUsePrefix]     = useState(true)
   const [factor, setFactor]           = useState(1)
   const [batchNo, setBatchNo]         = useState('')
   const [expiry, setExpiry]           = useState('')
@@ -29,14 +28,8 @@ export default function AbxTab() {
     const mfrs = getActiveManufacturers(itemCode)
     setManufacturers(mfrs)
     setManufacturer(mfrs[0] || '')
-    recalcBatch(itemCode, usePrefix, abx)
+    recalcBatch(itemCode, abx)
   }, [itemCode])
-
-  useEffect(() => {
-    if (!itemCode) return
-    const abx = abxList.find(a => a.itemCode === itemCode)
-    recalcBatch(itemCode, usePrefix, abx)
-  }, [usePrefix])
 
   useEffect(() => {
     if (!itemCode || !manufacturer) { setExpiry(''); return }
@@ -49,9 +42,9 @@ export default function AbxTab() {
     }
   }, [manufacturer])
 
-  const recalcBatch = (code, prefix, abx) => {
+  const recalcBatch = (code, abx) => {
     const pfx = abx ? abx.prefix : ''
-    const bn = generateBatchNo(storageKey, pfx, prefix)
+    const bn = generateBatchNo(storageKey, pfx, true)
     setBatchNo(bn)
   }
 
@@ -64,6 +57,11 @@ export default function AbxTab() {
     // One per vial/pack + 1 spare for the batch sheet
     const totalLabels = parseInt(factor) + 1
     printReconstitutionLabel(batchNo, expiry, totalLabels, settings)
+
+    // Plus 1 standard small IP label (4-row layout with Packed/Checked sign blanks)
+    // for the batch record sheet.
+    const smallHtml = buildSmallLabelHTML(description, 'IP', batchNo, expiry, itemCode, settings)
+    printLabel(smallHtml, 1, settings)
 
     // Save batch record
     addBatchRecord({
@@ -120,10 +118,6 @@ export default function AbxTab() {
       </div>
 
       <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-          <input type="checkbox" checked={usePrefix} onChange={e => setUsePrefix(e.target.checked)} />
-          Include prefix in batch no.
-        </label>
         <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           Batch No: <strong style={{ color: 'var(--text)', fontFamily: 'monospace' }}>{batchNo || '—'}</strong>
         </div>

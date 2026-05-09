@@ -533,7 +533,7 @@ export default function Settings({ navigate }) {
                 <div style={{ marginTop: 4, fontWeight: 600, fontSize: 12, color: 'var(--text-muted)' }}>
                   Drug Reconstitution Label
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 6 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 12, marginTop: 6, alignItems: 'end' }}>
                   <div className="form-group">
                     <label className="form-label">Recon Title Size (pt)</label>
                     <input className="form-input" type="number" step="0.5" value={settings.reconTitleFontSize ?? 6}
@@ -544,6 +544,18 @@ export default function Settings({ navigate }) {
                     <input className="form-input" type="number" step="0.5" value={settings.reconValueFontSize ?? 9}
                       onChange={e => set('reconValueFontSize', parseFloat(e.target.value) || 9)} />
                   </div>
+                </div>
+                <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 13 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={settings.reconTitleFontBold ?? false}
+                      onChange={e => set('reconTitleFontBold', e.target.checked)} />
+                    Title bold
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={settings.reconValueFontBold ?? true}
+                      onChange={e => set('reconValueFontBold', e.target.checked)} />
+                    Value bold
+                  </label>
                 </div>
 
                 <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, fontSize: 12, color: 'var(--text-muted)' }}>

@@ -215,7 +215,9 @@ export function getSettings() {
     batchUnderline:  false,          // draw an underline under the batch number value
     // Drug Reconstitution label (50/50 split) — independent typography
     reconTitleFontSize: 6,
+    reconTitleFontBold: false,
     reconValueFontSize: 9,
+    reconValueFontBold: true,
     // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
     barcodeMethod:   'gs1',
     // EV54 pick list: when true, reject codes not in the EV54 Drugs table.

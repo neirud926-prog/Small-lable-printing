@@ -268,7 +268,9 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
         widthMm:        w,
         heightMm:       h,
         titleFontSize:  settings.reconTitleFontSize || settings.batchFontSize || 6,
+        titleFontBold:  settings.reconTitleFontBold ?? false,
         valueFontSize:  settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5),
+        valueFontBold:  settings.reconValueFontBold ?? true,
         fontFamily:     settings.fontFamily    || 'Arial',
       })
       return
@@ -301,9 +303,11 @@ export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}) {
   const ff        = settings.fontFamily    || 'Arial'
   const titlePt   = settings.reconTitleFontSize || settings.batchFontSize || 6
   const valuePt   = settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5)
+  const titleW    = (settings.reconTitleFontBold ?? false) ? 'bold' : 'normal'
+  const valueW    = (settings.reconValueFontBold ?? true)  ? 'bold' : 'normal'
   const half = `flex:1 1 50%;display:flex;flex-direction:column;justify-content:center;padding:0 1mm;overflow:hidden;`
-  const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;`
-  const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:bold;line-height:1.15;margin-top:0.5mm;`
+  const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;font-weight:${titleW};`
+  const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:${valueW};line-height:1.15;margin-top:0.5mm;`
   return `
     <div style="display:flex;flex-direction:column;width:100%;height:100%;">
       <div style="${half}">
