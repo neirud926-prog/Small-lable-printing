@@ -305,18 +305,52 @@ export function getProfileForComputer(name) {
 }
 
 // ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
+// The shared-file path lives in localStorage (not the data file body) because
+// each PC needs to discover it before the file is opened. We still want it to
+// travel with the backup so importing on a new PC restores the cross-PC link.
+function _readSharedDataPath() {
+  try {
+    const raw = localStorage.getItem(ts.SML_DATA_PATH_KEY)
+    return raw && raw.trim() ? raw.trim() : null
+  } catch { return null }
+}
+
 export function exportAllData() {
-  if (ts.isConnected()) return JSON.stringify(ts.getAll(), null, 2)
-  const data = {}
-  Object.values(KEYS).forEach(k => { data[k] = load(k, null) })
+  const data = ts.isConnected()
+    ? { ...ts.getAll() }
+    : Object.values(KEYS).reduce((o, k) => (o[k] = load(k, null), o), {})
+  const sharedPath = _readSharedDataPath()
+  if (sharedPath) data[ts.SML_DATA_PATH_KEY] = sharedPath
   return JSON.stringify(data, null, 2)
 }
 
 export async function importAllData(jsonString) {
-  const data = JSON.parse(jsonString)
-  Object.entries(data).forEach(([k, v]) => { if (v !== null) lsSet(k, v) })
-  if (ts.isConnected())      await ts.setAll(data)
-  else if (fs.isConnected()) await fs.setAll(data)
+  const parsed = JSON.parse(jsonString)
+
+  // Pull the shared-file path out of the payload so it doesn't get persisted
+  // as a row inside the data file itself.
+  let importedPath = null
+  if (typeof parsed[ts.SML_DATA_PATH_KEY] === 'string' && parsed[ts.SML_DATA_PATH_KEY].trim()) {
+    importedPath = parsed[ts.SML_DATA_PATH_KEY].trim()
+    delete parsed[ts.SML_DATA_PATH_KEY]
+  }
+
+  // Mirror everything to localStorage as a backup layer.
+  Object.entries(parsed).forEach(([k, v]) => { if (v !== null) lsSet(k, v) })
+
+  // If the backup carries a shared path AND this PC is still on the default
+  // (i.e. the user has never picked a custom location), adopt it so the
+  // imported data lands on the shared file, not on this PC's local copy.
+  const localPath = _readSharedDataPath()
+  const adoptPath = importedPath && !localPath && ts.isConnected()
+  if (adoptPath) {
+    try { localStorage.setItem(ts.SML_DATA_PATH_KEY, importedPath) } catch { /* ignore */ }
+    await ts.switchPath(importedPath, parsed)
+    return
+  }
+
+  if (ts.isConnected())      await ts.setAll(parsed)
+  else if (fs.isConnected()) await fs.setAll(parsed)
 }
 
 // ── FRESH-INSTALL SEED ────────────────────────────────────────────────────────

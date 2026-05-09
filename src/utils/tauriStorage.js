@@ -98,6 +98,21 @@ export function set(key, value) {
 export function getAll()       { return { ..._cache } }
 export function setAll(data)   { _cache = { ...data }; return _flush() }
 
+/**
+ * Repoint the live cache at a new file and write `data` into it.
+ * Used by import-with-shared-path so the imported payload lands on the
+ * new shared file (not the previously-active local one).
+ */
+export async function switchPath(newPath, data) {
+  if (!newPath || !newPath.trim()) throw new Error('switchPath: empty path')
+  const path = newPath.trim()
+  const dir  = dirOf(path)
+  if (!(await exists(dir))) await mkdir(dir, { recursive: true })
+  _cache      = { ...data }
+  _activePath = path
+  await _flush()
+}
+
 // Serialize writes so a burst of set() calls produces one file I/O queue,
 // not overlapping writes that can corrupt the file mid-flight.
 function _flush() {

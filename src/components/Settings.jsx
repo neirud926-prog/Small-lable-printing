@@ -172,11 +172,13 @@ export default function Settings({ navigate }) {
     const applyText = async (text) => {
       try {
         await importAllData(text)
-        setImportMsg('✓ Data imported successfully. Refresh the page.')
-      } catch {
-        setImportMsg('✗ Import failed — invalid file format.')
+        setImportMsg('✓ Data imported successfully. Reloading…')
+        setTimeout(() => window.location.reload(), 800)
+      } catch (err) {
+        const detail = err?.message ? `: ${err.message}` : ' — invalid file format.'
+        setImportMsg(`✗ Import failed${detail}`)
+        setTimeout(() => setImportMsg(''), 5000)
       }
-      setTimeout(() => setImportMsg(''), 4000)
     }
     if (isTauri()) {
       try {
