@@ -316,9 +316,23 @@ function _readSharedDataPath() {
 }
 
 export function exportAllData() {
-  const data = ts.isConnected()
-    ? { ...ts.getAll() }
-    : Object.values(KEYS).reduce((o, k) => (o[k] = load(k, null), o), {})
+  // Walk every known key through load(), which prefers the active backing
+  // store but falls back to localStorage. This guarantees we capture data
+  // that was seeded into localStorage before ts.init() ran (and therefore
+  // never made it into _cache / the data file).
+  const data = Object.values(KEYS).reduce((o, k) => {
+    const v = load(k, null)
+    if (v !== null && v !== undefined) o[k] = v
+    return o
+  }, {})
+  // Pick up any extra keys that live in the data file but aren't in KEYS
+  // (forward-compat with future additions written by another PC).
+  if (ts.isConnected()) {
+    const all = ts.getAll()
+    for (const [k, v] of Object.entries(all)) {
+      if (!(k in data) && v !== null && v !== undefined) data[k] = v
+    }
+  }
   const sharedPath = _readSharedDataPath()
   if (sharedPath) data[ts.SML_DATA_PATH_KEY] = sharedPath
   return JSON.stringify(data, null, 2)
