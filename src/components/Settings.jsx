@@ -4,11 +4,13 @@ import { getSettings, saveSettings, exportAllData, importAllData,
          getDataPaths, saveDataPaths,
          getComputerProfiles, saveComputerProfiles, getFeatureFlagList, allFlagsTrue, allFlagsFalse } from '../utils/storage'
 import { isConnected as isFileConnected, getFileName, disconnect as fileDisconnect } from '../utils/fileStorage'
-import { isConnected as isTauriConnected, getFilePath as getTauriPath } from '../utils/tauriStorage'
+import { isConnected as isTauriConnected, getFilePath as getTauriPath,
+         getDataPath, setDataPath, DEFAULT_DATA_PATH } from '../utils/tauriStorage'
 import { autoLoad, refreshSource } from '../utils/dataLoader'
 import Icon from './Icon'
 import LabelPreview from './LabelPreview'
-import { open as openDialog } from '@tauri-apps/plugin-dialog'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauri } from '../utils/tauriStorage'
 import { useApp } from '../utils/AppContext'
@@ -137,31 +139,68 @@ export default function Settings({ navigate }) {
     setTimeout(() => setPinMsg(''), 3000)
   }
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const data = exportAllData()
+    const fileName = `small-label-backup-${new Date().toLocaleDateString('en-CA')}.json`
+    if (isTauri()) {
+      try {
+        const target = await saveDialog({
+          title: 'Save backup',
+          defaultPath: fileName,
+          filters: [{ name: 'JSON', extensions: ['json'] }],
+        })
+        if (!target) return
+        await writeTextFile(target, data)
+        setImportMsg(`✓ Backup saved to ${target}`)
+      } catch (err) {
+        setImportMsg(`✗ Save failed: ${err?.message || err}`)
+      }
+      setTimeout(() => setImportMsg(''), 5000)
+      return
+    }
+    // Browser fallback
     const blob = new Blob([data], { type: 'application/json' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href     = url
-    a.download = `small-label-backup-${new Date().toLocaleDateString('en-CA')}.json`
+    a.download = fileName
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const handleImport = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
+  const handleImport = async (eOrNull) => {
+    const applyText = async (text) => {
       try {
-        await importAllData(ev.target.result)
+        await importAllData(text)
         setImportMsg('✓ Data imported successfully. Refresh the page.')
-        setTimeout(() => setImportMsg(''), 4000)
       } catch {
         setImportMsg('✗ Import failed — invalid file format.')
-        setTimeout(() => setImportMsg(''), 4000)
       }
+      setTimeout(() => setImportMsg(''), 4000)
     }
+    if (isTauri()) {
+      try {
+        const file = await openDialog({
+          title: 'Choose backup file',
+          multiple: false,
+          filters: [{ name: 'JSON', extensions: ['json'] }],
+        })
+        if (!file) return
+        const path = typeof file === 'string' ? file : file?.path
+        if (!path) return
+        const text = await readTextFile(path)
+        await applyText(text)
+      } catch (err) {
+        setImportMsg(`✗ Import failed: ${err?.message || err}`)
+        setTimeout(() => setImportMsg(''), 5000)
+      }
+      return
+    }
+    // Browser fallback (HTML <input type=file>)
+    const file = eOrNull?.target?.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => applyText(ev.target.result)
     reader.readAsText(file)
   }
 
@@ -834,6 +873,9 @@ export default function Settings({ navigate }) {
             </AnimatePresence>
           </div>
 
+          {/* Shared data file location (Tauri only) */}
+          {isTauri() && <SharedDataPathCard onSaved={msg => { setImportMsg(msg); setTimeout(() => setImportMsg(''), 5000) }} />}
+
           {/* Data Backup */}
           <div className="card">
             <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16 }}>💾 Data Backup & Restore</div>
@@ -842,10 +884,14 @@ export default function Settings({ navigate }) {
             </p>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button className="btn btn-primary" onClick={handleExport}>⬇ Export Backup</button>
-              <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
-                ⬆ Import Backup
-                <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
-              </label>
+              {isTauri() ? (
+                <button className="btn btn-ghost" onClick={() => handleImport(null)}>⬆ Import Backup</button>
+              ) : (
+                <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
+                  ⬆ Import Backup
+                  <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImport} />
+                </label>
+              )}
             </div>
             <AnimatePresence>
               {importMsg && (
@@ -858,6 +904,72 @@ export default function Settings({ navigate }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// ── Shared data file location ───────────────────────────────────────────────
+// Lets the user point this PC at a shared UNC path so multiple PCs read/write
+// the same JSON file. Reload after save so tauriStorage.init() picks the
+// new path and reloads the cache from there.
+function SharedDataPathCard({ onSaved }) {
+  const [pathInput, setPathInput] = useState(getDataPath())
+  const activePath = getTauriPath() || DEFAULT_DATA_PATH
+  const isCustom   = activePath !== DEFAULT_DATA_PATH
+
+  const browse = async () => {
+    try {
+      const target = await saveDialog({
+        title: 'Pick or create shared data file',
+        defaultPath: pathInput || DEFAULT_DATA_PATH,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      })
+      if (target) setPathInput(target)
+    } catch (err) {
+      onSaved?.(`✗ Browse failed: ${err?.message || err}`)
+    }
+  }
+
+  const apply = () => {
+    const next = (pathInput || '').trim()
+    if (!next) { onSaved?.('✗ Path is empty.'); return }
+    if (next === activePath) { onSaved?.('Already using this path.'); return }
+    setDataPath(next)
+    onSaved?.('✓ Saved. Reloading…')
+    setTimeout(() => window.location.reload(), 600)
+  }
+
+  const reset = () => {
+    setDataPath('')
+    setPathInput(DEFAULT_DATA_PATH)
+    onSaved?.('✓ Reset to default. Reloading…')
+    setTimeout(() => window.location.reload(), 600)
+  }
+
+  return (
+    <div className="card">
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>🌐 Shared Data File Location</div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+        To sync data across PCs, point every PC at the same file on a shared drive
+        (e.g. <code>\\SERVER\pharmacy\small-label-data.json</code>).
+        Each PC stores the path locally; the data file itself is shared.
+      </p>
+      <div style={{ fontSize: 12, marginBottom: 6 }}>
+        Currently using: <code style={{ background: 'var(--bg)', padding: '2px 6px', borderRadius: 4 }}>{activePath}</code>
+        {isCustom && <span style={{ marginLeft: 8, color: 'var(--success)', fontWeight: 600 }}>· custom</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'stretch', marginTop: 10 }}>
+        <input
+          className="form-input"
+          style={{ flex: '1 1 320px', fontFamily: 'monospace', fontSize: 12 }}
+          placeholder="\\SERVER\share\small-label-data.json"
+          value={pathInput}
+          onChange={e => setPathInput(e.target.value)}
+        />
+        <button className="btn btn-ghost" onClick={browse}>📁 Browse…</button>
+        <button className="btn btn-primary" onClick={apply}>Apply &amp; Reload</button>
+        {isCustom && <button className="btn btn-ghost" onClick={reset}>Reset to default</button>}
+      </div>
     </div>
   )
 }
