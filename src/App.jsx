@@ -58,10 +58,22 @@ function AppInner() {
     if (!isViewAllowed(view)) setView('enquiry')
   }, [effectiveFlags, view])
 
-  // On mount: seed bundled data on truly-fresh installs, then auto-connect.
+  // On mount: connect to the data file first, then seed if truly empty.
   useEffect(() => {
     async function init() {
-      // 0. Bundled seed for first-time installs (only when no drug data exists anywhere).
+      // 1. Native app — connect to the data file BEFORE seeding so the seed
+      //    lands on disk (and in any shared file) instead of localStorage only.
+      let tauriReady = false
+      if (isTauri()) {
+        try {
+          tauriReady = await initTauri()
+        } catch (e) {
+          console.error('Tauri storage init failed:', e)
+        }
+      }
+
+      // 2. Bundled seed — runs AFTER initTauri() so importAllData() reaches
+      //    ts.setAll() and persists every seeded key to the data file.
       try {
         if (isFreshInstall()) {
           await seedFromBundle(seedData)
@@ -71,25 +83,18 @@ function AppInner() {
         console.warn('Seed bundle failed:', e)
       }
 
-      // 1. Native app — Tauri reads/writes D:\SmallLabel\small-label-data.json directly
-      if (isTauri()) {
-        try {
-          if (await initTauri()) {
-            await autoLoad()    // refresh drugs / locations / GTIN / stock from configured paths
-            setConnected(true); setLoading(false); return
-          }
-        } catch (e) {
-          console.error('Tauri storage init failed:', e)
-        }
+      if (tauriReady) {
+        try { await autoLoad() } catch (e) { console.warn('autoLoad failed:', e) }
+        setConnected(true); setLoading(false); return
       }
 
-      // 2. Browser fallback — previously-picked shared file (File System Access API)
+      // 3. Browser fallback — previously-picked shared file (File System Access API)
       if (await tryRestore()) { setConnected(true); setLoading(false); return }
 
-      // 3. Had a file before but lost permission — minimal reconnect prompt
+      // 4. Had a file before but lost permission — minimal reconnect prompt
       if (hasStoredHandle()) { setNeedReconnect(true); setLoading(false); return }
 
-      // 4. Nothing found — show the connect screen
+      // 5. Nothing found — show the connect screen
       setLoading(false)
     }
     init()

@@ -50,13 +50,15 @@ export function isTauri() {
 }
 
 // ── Module state ────────────────────────────────────────────────────────────
-let _cache      = null    // parsed data object (in-memory)
-let _connected  = false
-let _writeQueue = Promise.resolve()   // serializes concurrent writes
-let _activePath = null    // path that init() actually opened
+let _cache       = null    // parsed data object (in-memory)
+let _connected   = false
+let _writeQueue  = Promise.resolve()   // serializes concurrent writes
+let _activePath  = null    // path that init() actually opened
+let _writeFailed = false   // true while the most recent write was rejected
 
-export function isConnected() { return _connected }
-export function getFilePath() { return _activePath || getDataPath() }
+export function isConnected()    { return _connected }
+export function getFilePath()    { return _activePath || getDataPath() }
+export function lastWriteFailed(){ return _writeFailed }
 
 // ── Init ────────────────────────────────────────────────────────────────────
 /** Call on startup. Creates the folder + empty file if missing. */
@@ -79,7 +81,28 @@ export async function init() {
   }
 
   _activePath = path
-  _connected = true
+  _connected  = true
+
+  // Hydrate: any sml_* key present in localStorage but missing from the file
+  // (e.g. left over from seedFromBundle running before init, or from a session
+  // when _flush() was poisoned by a transient write failure) is copied into
+  // the cache and persisted. Without this, the shared file silently drifts
+  // out of sync with what this PC's UI displays.
+  let hydratedAny = false
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k || !k.startsWith('sml_')) continue
+      if (k === SML_DATA_PATH_KEY) continue   // per-PC config, not shared
+      if (_cache[k] !== undefined) continue
+      const raw = localStorage.getItem(k)
+      if (raw === null) continue
+      try { _cache[k] = JSON.parse(raw) } catch { _cache[k] = raw }
+      hydratedAny = true
+    }
+  } catch { /* localStorage iteration failed — non-fatal */ }
+  if (hydratedAny) await _flush()
+
   return true
 }
 
@@ -92,17 +115,55 @@ export function get(key, fallback) {
 export function set(key, value) {
   if (!_cache) _cache = {}
   _cache[key] = value
-  _flush()
+  return _flush()
 }
 
 export function getAll()       { return { ..._cache } }
 export function setAll(data)   { _cache = { ...data }; return _flush() }
 
+/**
+ * Repoint the live cache at a new file and write `data` into it.
+ * Used by import-with-shared-path so the imported payload lands on the
+ * new shared file (not the previously-active local one).
+ */
+export async function switchPath(newPath, data) {
+  if (!newPath || !newPath.trim()) throw new Error('switchPath: empty path')
+  const path = newPath.trim()
+  const dir  = dirOf(path)
+  if (!(await exists(dir))) await mkdir(dir, { recursive: true })
+  _cache      = { ...data }
+  _activePath = path
+  await _flush()
+}
+
 // Serialize writes so a burst of set() calls produces one file I/O queue,
 // not overlapping writes that can corrupt the file mid-flight.
+//
+// IMPORTANT: A .then(onFulfilled) chain stops calling onFulfilled the moment
+// any upstream promise rejects, so a single failed write would poison
+// _writeQueue for the rest of the session and silently drop every subsequent
+// save. The .then(ok, fail) form below runs the next write regardless of
+// the previous outcome, and a trailing .catch() turns rejection into a
+// resolved sentinel so the queue keeps flowing.
 function _flush() {
   const content = JSON.stringify(_cache, null, 2)
   const path    = _activePath || getDataPath()
-  _writeQueue = _writeQueue.then(() => writeTextFile(path, content))
-  return _writeQueue
+  const attempt = _writeQueue.then(
+    () => writeTextFile(path, content),
+    () => writeTextFile(path, content),
+  )
+  _writeQueue = attempt.then(
+    () => { _writeFailed = false },
+    (err) => {
+      _writeFailed = true
+      const detail = err?.message || String(err)
+      try { console.error('tauriStorage write failed:', detail) } catch { /* ignore */ }
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('sml:storage-write-error', { detail }))
+        }
+      } catch { /* ignore */ }
+    },
+  )
+  return attempt
 }

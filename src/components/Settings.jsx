@@ -72,7 +72,14 @@ export default function Settings({ navigate }) {
     _setSettings(s => ({ ...s, [k]: v }))
   }
 
-  const savePathsToDisk = (updated) => saveDataPaths(updated)
+  const savePathsToDisk = async (updated) => {
+    try {
+      await saveDataPaths(updated)
+    } catch (err) {
+      setImportMsg(`✗ Could not save path to data file: ${err?.message || err}`)
+      setTimeout(() => setImportMsg(''), 6000)
+    }
+  }
 
   const browsePath = async (key, filters) => {
     if (!isTauri()) return
@@ -81,7 +88,7 @@ export default function Settings({ navigate }) {
       if (selected) {
         const updated = { ...dataPaths, [key]: selected }
         setDataPaths(updated)
-        savePathsToDisk(updated)
+        await savePathsToDisk(updated)
       }
     } catch { /* user cancelled */ }
   }
@@ -121,10 +128,15 @@ export default function Settings({ navigate }) {
     setTimeout(() => setRefreshMsg(''), 5000)
   }
 
-  const handleSave = () => {
-    saveSettings(settings)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    try {
+      await saveSettings(settings)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (err) {
+      setImportMsg(`✗ Save failed — settings kept locally but not written to the shared file: ${err?.message || err}`)
+      setTimeout(() => setImportMsg(''), 8000)
+    }
   }
 
   const handlePinChange = () => {
@@ -172,11 +184,13 @@ export default function Settings({ navigate }) {
     const applyText = async (text) => {
       try {
         await importAllData(text)
-        setImportMsg('✓ Data imported successfully. Refresh the page.')
-      } catch {
-        setImportMsg('✗ Import failed — invalid file format.')
+        setImportMsg('✓ Data imported successfully. Reloading…')
+        setTimeout(() => window.location.reload(), 800)
+      } catch (err) {
+        const detail = err?.message ? `: ${err.message}` : ' — invalid file format.'
+        setImportMsg(`✗ Import failed${detail}`)
+        setTimeout(() => setImportMsg(''), 5000)
       }
-      setTimeout(() => setImportMsg(''), 4000)
     }
     if (isTauri()) {
       try {
