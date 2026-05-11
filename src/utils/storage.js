@@ -33,8 +33,9 @@ function load(key, fallback) {
 
 function save(key, value) {
   lsSet(key, value)             // always write localStorage as backup
-  if (ts.isConnected())      ts.set(key, value)
-  else if (fs.isConnected()) fs.set(key, value)
+  if (ts.isConnected())      return ts.set(key, value)
+  if (fs.isConnected())      return fs.set(key, value)
+  return Promise.resolve()
 }
 
 // ── Key constants ─────────────────────────────────────────────────────────────
@@ -229,7 +230,7 @@ export function getSettings() {
   })
 }
 export function saveSettings(settings) {
-  save(KEYS.SETTINGS, { ...getSettings(), ...settings })
+  return save(KEYS.SETTINGS, { ...getSettings(), ...settings })
 }
 
 // ── GTIN MAP ──────────────────────────────────────────────────────────────────
@@ -257,7 +258,7 @@ export function getDataPaths() {
   })
 }
 export function saveDataPaths(paths) {
-  save(KEYS.DATA_PATHS, { ...getDataPaths(), ...paths })
+  return save(KEYS.DATA_PATHS, { ...getDataPaths(), ...paths })
 }
 
 // ── STOCK ON-HAND ─────────────────────────────────────────────────────────────
