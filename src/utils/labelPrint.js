@@ -253,7 +253,7 @@ function _enqueueReconstitutionIframe(labelHTML, settings) {
   }))
 }
 
-function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
+function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode = '') {
   const w = settings.labelWidth  || 34.4
   const h = settings.labelHeight || 25
   const css = buildReconstitutionPageCSS(settings)
@@ -272,6 +272,7 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
         valueFontSize:  settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5),
         valueFontBold:  settings.reconValueFontBold ?? true,
         fontFamily:     settings.fontFamily    || 'Arial',
+        topBlackBg:     isBlackBgItem(itemCode),
       })
       return
     } catch (e) {
@@ -288,29 +289,33 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings) {
   })
 }
 
-export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings = {}) {
-  const labelHTML = buildReconstitutionLabelHTML(batchNo, expiry, settings)
+export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings = {}, itemCode = '') {
+  const labelHTML = buildReconstitutionLabelHTML(batchNo, expiry, settings, itemCode)
   for (let i = 0; i < copies; i++) {
     if (isTauri() && settings.silentPrint) {
-      _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings)
+      _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode)
     } else {
       _enqueueReconstitutionIframe(labelHTML, settings)
     }
   }
 }
 
-export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}) {
+export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, itemCode = '') {
   const ff        = settings.fontFamily    || 'Arial'
   const titlePt   = settings.reconTitleFontSize || settings.batchFontSize || 6
   const valuePt   = settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5)
   const titleW    = (settings.reconTitleFontBold ?? false) ? 'bold' : 'normal'
   const valueW    = (settings.reconValueFontBold ?? true)  ? 'bold' : 'normal'
+  const isBlackBg = isBlackBgItem(itemCode)
   const half = `flex:1 1 50%;display:flex;flex-direction:column;justify-content:center;padding:0 1mm;overflow:hidden;`
+  const topHalf = isBlackBg
+    ? `${half}background:#000;color:#fff;`
+    : half
   const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;font-weight:${titleW};`
   const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:${valueW};line-height:1.15;margin-top:0.5mm;`
   return `
     <div style="display:flex;flex-direction:column;width:100%;height:100%;">
-      <div style="${half}">
+      <div style="${topHalf}">
         <div style="${title}">Batch No:</div>
         <div style="${value}">${batchNo || ''}</div>
       </div>
@@ -322,16 +327,23 @@ export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}) {
   `
 }
 
+// Item codes that get black-background treatment on the small label.
+// Currently AUGM06 (the Augmentin 600mg lookalike that pharmacists must not
+// dispense as standard amoxicillin). Reconstitution labels mirror this for
+// the upper "Batch No" half so the black flag is visually consistent.
+export function isBlackBgItem(itemCode) {
+  return !!itemCode && itemCode.trim().toUpperCase() === 'AUGM06'
+}
+
 // ── Label HTML builders ───────────────────────────────────────────────────────
 
 // Small label (34.4mm × 25mm landscape)
 export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings = {}) {
-  const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const isPHEN18 = itemCode && itemCode.toUpperCase() === 'PHEN18'
 
   const drugClass = [
     'label-drug',
-    isAUGM06 ? 'black-bg' : '',
+    isBlackBgItem(itemCode) ? 'black-bg' : '',
     isPHEN18 ? 'small-font' : '',
   ].filter(Boolean).join(' ')
 
@@ -354,8 +366,7 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
 
 // ABX / OPLabel (3-column, for batch record sheet)
 export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings = {}) {
-  const isAUGM06 = itemCode && itemCode.toUpperCase() === 'AUGM06'
-  const drugStyle = isAUGM06 ? 'background:black;color:white;' : ''
+  const drugStyle = isBlackBgItem(itemCode) ? 'background:black;color:white;' : ''
   const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7
   const col = `

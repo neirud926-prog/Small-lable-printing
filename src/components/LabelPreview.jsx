@@ -27,7 +27,7 @@ export default function LabelPreview({
 
   const srcDoc = useMemo(() => {
     if (type === 'recon') {
-      const body = buildReconstitutionLabelHTML(batchNo, expiry, settings)
+      const body = buildReconstitutionLabelHTML(batchNo, expiry, settings, code)
       return buildReconstitutionFullPageHTML(body, settings)
     }
     const body = buildSmallLabelHTML(drugName, 'IP', batchNo, expiry, code, settings)
