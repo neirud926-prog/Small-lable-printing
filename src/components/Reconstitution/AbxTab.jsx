@@ -56,7 +56,7 @@ export default function AbxTab() {
     // Print Drug Reconstitution label — 50/50 split (Batch No / Use Before)
     // One per vial/pack + 1 spare for the batch sheet
     const totalLabels = parseInt(factor) + 1
-    printReconstitutionLabel(batchNo, expiry, totalLabels, settings)
+    printReconstitutionLabel(batchNo, expiry, totalLabels, settings, itemCode)
 
     // Plus 1 standard small IP label (4-row layout with Packed/Checked sign blanks)
     // for the batch record sheet.

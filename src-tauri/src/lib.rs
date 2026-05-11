@@ -224,6 +224,7 @@ $pd.add_PrintPage({
     $d  = $script:d
 
     $blk = [System.Drawing.Brushes]::Black
+    $wht = [System.Drawing.Brushes]::White
     $w   = [double]$d.widthMm
     $h   = [double]$d.heightMm
 
@@ -243,12 +244,19 @@ $pd.add_PrintPage({
     $topPad = ($halfH - $stackH) / 2.0
     if ($topPad -lt 0.3) { $topPad = 0.3 }
 
+    # Upper half background — black fill for flagged items (e.g. AUGM06)
+    $topBg = [bool]$d.topBlackBg
+    if ($topBg) {
+        $g.FillRectangle([System.Drawing.Brushes]::Black, 0.0, 0.0, $w, $halfH)
+    }
+    $topBrush = if ($topBg) { $wht } else { $blk }
+
     # Upper half: Batch No
     $y0 = $topPad
-    $g.DrawString("Batch No:",            $titleFont, $blk, $padX, $y0)
-    $g.DrawString([string]$d.batchNo,     $valueFont, $blk, $padX, ($y0 + $titleH + 0.4))
+    $g.DrawString("Batch No:",            $titleFont, $topBrush, $padX, $y0)
+    $g.DrawString([string]$d.batchNo,     $valueFont, $topBrush, $padX, ($y0 + $titleH + 0.4))
 
-    # Lower half: Use Before
+    # Lower half: Use Before (always white background, black text)
     $y1 = $halfH + $topPad
     $g.DrawString("Use Before:",          $titleFont, $blk, $padX, $y1)
     $g.DrawString([string]$d.expiry,      $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
@@ -275,6 +283,7 @@ fn print_reconstitution_label_powershell(
     value_font_size: f64,
     value_font_bold: bool,
     font_family: String,
+    top_black_bg: Option<bool>,
 ) -> Result<(), String> {
     let _lock = PRINT_LOCK
         .lock()
@@ -291,6 +300,7 @@ fn print_reconstitution_label_powershell(
         "valueFontSize":  value_font_size,
         "valueFontBold":  value_font_bold,
         "fontFamily":     font_family,
+        "topBlackBg":     top_black_bg.unwrap_or(false),
     });
 
     let temp_dir = std::env::temp_dir();
