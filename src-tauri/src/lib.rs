@@ -120,10 +120,15 @@ $pd.add_PrintPage({
     $w  = [double]$d.widthMm
     $h  = [double]$d.heightMm
 
-    $hasExp  = ($d.ipop -eq 'IP') -and ([string]$d.expiry -ne '') -and ([string]$d.expiry -ne 'na----')
+    # IP labels always reserve the expiry row — when the value is blank we
+    # draw the prefix + an underline so the row can be filled in by hand.
+    $isIP    = ($d.ipop -eq 'IP')
+    $expStr  = [string]$d.expiry
+    $hasExp  = $isIP -and ($expStr -ne '') -and ($expStr -ne 'na----')
+    $expRow  = $isIP    # row is reserved whenever ipop=IP, value or no value
     $footerH = 4.8
     $batchH  = 4.5
-    $expH    = if ($hasExp) { 3.2 } else { 0 }
+    $expH    = if ($expRow) { 3.2 } else { 0 }
     $drugH   = $h - $pt - $pb - $footerH - $batchH - $expH
 
     # ── Drug name ──────────────────────────────────────────────────────────────
@@ -147,11 +152,22 @@ $pd.add_PrintPage({
 
     $y = $pt + $drugH
 
-    # ── Expiry (IP labels only) ────────────────────────────────────────────────
-    if ($hasExp) {
+    # ── Expiry (IP labels: always reserved; underline when blank) ─────────────
+    if ($expRow) {
         $eStyle = if ([bool]$d.expFontBold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
         $ef = New-Object System.Drawing.Font([string]$d.fontFamily, [double]$d.expFontSize, $eStyle)
-        $g.DrawString("$([string]$d.expiryLabel) $([string]$d.expiry)", $ef, $blk, $pl, $y)
+        $expLabel = [string]$d.expiryLabel
+        if ($hasExp) {
+            $g.DrawString("$expLabel $expStr", $ef, $blk, $pl, $y)
+        } else {
+            # Draw the prefix, then a horizontal line spanning the rest of the row
+            # at the text baseline so staff can write the date in by hand.
+            $g.DrawString("$expLabel ", $ef, $blk, $pl, $y)
+            $eSz   = $g.MeasureString("$expLabel ", $ef)
+            $charE = [double]$d.expFontSize * 0.353
+            $eLineY = $y + $charE * 0.95
+            $g.DrawLine($pen, ($pl + $eSz.Width), $eLineY, ($w - $pr), $eLineY)
+        }
         $y += $expH
     }
 
@@ -163,9 +179,13 @@ $pd.add_PrintPage({
     $batX   = $pl + $bSz.Width
     $charHB = [double]$d.batchFontSize * 0.353
     $lineY  = $y + 0.4 + $charHB * 0.85
+    $batVal = [string]$d.batchNo
+    $batBlank = $isIP -and ($batVal -eq '')
     $g.DrawString("Bat. No.:", $bfBold,  $blk, $pl,   ($y + 0.4))
-    $g.DrawString([string]$d.batchNo, $bfValue, $blk, $batX, ($y + 0.4))
-    if ([bool]$d.batchUnderline) {
+    $g.DrawString($batVal, $bfValue, $blk, $batX, ($y + 0.4))
+    # Draw the underline whenever the user opted in via Settings, OR whenever
+    # this is an IP label with no batch value — write-in-by-hand convention.
+    if ([bool]$d.batchUnderline -or $batBlank) {
         $g.DrawLine($pen, $batX, $lineY, ($w - $pr), $lineY)
     }
     $y += $batchH
@@ -249,17 +269,33 @@ $pd.add_PrintPage({
     if ($topBg) {
         $g.FillRectangle([System.Drawing.Brushes]::Black, 0.0, 0.0, $w, $halfH)
     }
-    $topBrush = if ($topBg) { $wht } else { $blk }
+    $topBrush    = if ($topBg) { $wht } else { $blk }
+    $topPenColor = if ($topBg) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::Black }
+    $topPen      = New-Object System.Drawing.Pen($topPenColor, 0.25)
+    $botPen      = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 0.25)
 
-    # Upper half: Batch No
+    $batchVal = [string]$d.batchNo
+    $expVal   = [string]$d.expiry
+
+    # Upper half: Batch No (blank → underline for write-in-by-hand)
     $y0 = $topPad
-    $g.DrawString("Batch No:",            $titleFont, $topBrush, $padX, $y0)
-    $g.DrawString([string]$d.batchNo,     $valueFont, $topBrush, $padX, ($y0 + $titleH + 0.4))
+    $g.DrawString("Batch No:", $titleFont, $topBrush, $padX, $y0)
+    if ($batchVal -ne '') {
+        $g.DrawString($batchVal, $valueFont, $topBrush, $padX, ($y0 + $titleH + 0.4))
+    } else {
+        $blankY = $y0 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)
+        $g.DrawLine($topPen, $padX, $blankY, ($w - $padX), $blankY)
+    }
 
     # Lower half: Use Before (always white background, black text)
     $y1 = $halfH + $topPad
-    $g.DrawString("Use Before:",          $titleFont, $blk, $padX, $y1)
-    $g.DrawString([string]$d.expiry,      $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+    $g.DrawString("Use Before:", $titleFont, $blk, $padX, $y1)
+    if ($expVal -ne '') {
+        $g.DrawString($expVal, $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+    } else {
+        $blankY = $y1 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)
+        $g.DrawLine($botPen, $padX, $blankY, ($w - $padX), $blankY)
+    }
 
     $e.HasMorePages = $false
 })
