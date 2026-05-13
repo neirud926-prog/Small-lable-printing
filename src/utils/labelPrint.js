@@ -375,7 +375,10 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
     : ''
   // IP labels with a blank lot also force the underline regardless of the
   // batchUnderline setting — same write-in-by-hand intent.
-  const batBlank   = ipop === 'IP' && !batValue
+  // Blank lot prints with an underline placeholder on both IP and OP labels
+  // (same write-in-by-hand convention). batchUnderline setting still forces
+  // the underline on for non-blank values.
+  const batBlank   = !batValue
   const batLineCls = `label-bat-line${batBlank ? ' blank' : ''}`
 
   return `
