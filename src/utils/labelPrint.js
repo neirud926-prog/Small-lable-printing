@@ -46,11 +46,17 @@ export function buildPageCSS(settings = {}) {
   .label-drug.small-font { font-size: ${Math.max(dfs - 1.5, 5)}pt; }
   .label-drug.black-bg   { background: black; color: white; border-radius: 0.8mm; padding: 0 1mm; }
   .label-exp {
+    display: flex; align-items: flex-end;
     font-size: ${efs}pt;
     text-align: left;
     padding-bottom: 0.5mm;
     font-weight: ${efb ? 'bold' : 'normal'};
   }
+  .label-exp-line {
+    flex: 1; margin-left: 0.8mm; padding-left: 0.5mm;
+    font-weight: ${efb ? 'bold' : 'normal'}; font-size: ${efs}pt;
+  }
+  .label-exp-line.blank { border-bottom: 0.25mm solid #000; min-height: 1em; }
   .label-bat {
     display: flex; align-items: flex-end;
     font-size: ${bfs}pt; font-weight: bold; margin-top: 1.2mm;
@@ -59,6 +65,7 @@ export function buildPageCSS(settings = {}) {
     flex: 1; ${batLine} margin-left: 0.8mm;
     font-weight: ${bfb ? 'bold' : 'normal'}; font-size: ${bfs}pt; padding-left: 0.5mm;
   }
+  .label-bat-line.blank { border-bottom: 0.25mm solid #000; }
   .label-footer {
     display: flex; gap: 2mm; margin-top: 1mm;
     font-size: ${sfs}pt; font-weight: ${sfb ? 'bold' : 'normal'};
@@ -348,15 +355,22 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
   ].filter(Boolean).join(' ')
 
   const batValue = lot && lot !== 'na----' ? lot : ''
+  const expValue = exp && exp !== 'na----' ? exp : ''
   const expLabel = settings.expiryLabel || 'Use before:'
-  const expRow   = ipop === 'IP' && exp && exp !== 'na----'
-    ? `<div class="label-exp">${expLabel} ${exp}</div>`
+  // IP labels always render the expiry row; blank value → underline placeholder so
+  // staff can pen-write the date. OP labels still omit the row entirely (no expiry on OP).
+  const expRow = ipop === 'IP'
+    ? `<div class="label-exp">${expLabel}<span class="label-exp-line${expValue ? '' : ' blank'}">${expValue ? ` ${expValue}` : ''}</span></div>`
     : ''
+  // IP labels with a blank lot also force the underline regardless of the
+  // batchUnderline setting — same write-in-by-hand intent.
+  const batBlank   = ipop === 'IP' && !batValue
+  const batLineCls = `label-bat-line${batBlank ? ' blank' : ''}`
 
   return `
     <div class="${drugClass}">${drugName}</div>
     ${expRow}
-    <div class="label-bat">Bat. No.:<span class="label-bat-line">${batValue}</span></div>
+    <div class="label-bat">Bat. No.:<span class="${batLineCls}">${batValue}</span></div>
     <div class="label-footer">
       <div class="label-footer-item">Packed by:<span class="label-footer-line"></span></div>
       <div class="label-footer-item">Checked by:<span class="label-footer-line"></span></div>

@@ -31,6 +31,7 @@ function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
   if (!drugName) return null
   const isBlack  = itemCode && itemCode.toUpperCase() === 'AUGM06'
   const batValue = lot && lot !== 'na----' ? lot : ''
+  const expValue = exp && exp !== 'na----' ? exp : ''
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -39,8 +40,15 @@ function LabelPreview({ drugName, ipop, lot, exp, itemCode }) {
       style={{ margin: '0 auto' }}
     >
       <div className={`lp-drug ${isBlack ? 'lp-black' : ''}`}>{drugName}</div>
-      {ipop === 'IP' && exp && exp !== 'na----' && (
-        <div className="lp-expiry">Exp: {exp}</div>
+      {ipop === 'IP' && (
+        <div className="lp-expiry" style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <span>Use before:</span>
+          <span style={{
+            flex: 1, marginLeft: 4, fontWeight: 'normal',
+            borderBottom: expValue ? 'none' : '1px solid #333',
+            minHeight: '1em',
+          }}>{expValue ? ` ${expValue}` : ''}</span>
+        </div>
       )}
       <div className="lp-bat">Bat. No.:<span className="lp-bat-line">{batValue}</span></div>
       <div className="lp-footer">
@@ -89,7 +97,6 @@ export default function SmallLabelPrint({ navigate }) {
   const [itemCode, setItemCode]     = useState('')
   const [showIPOP, setShowIPOP]     = useState(false)
   const [pendingBarcode, setPendingBarcode] = useState(null)
-  const [fromGtinScan, setFromGtinScan] = useState(false)
   const [error, setError]           = useState('')
   const [success, setSuccess]       = useState(false)
   const inputRef   = useRef(null)
@@ -102,7 +109,6 @@ export default function SmallLabelPrint({ navigate }) {
 
   const clearLabel = () => {
     setDrugName(''); setIpop(''); setLot(''); setExp(''); setItemCode(''); setError('')
-    setFromGtinScan(false)
   }
 
   const autoPrintLabel = (drug, ipopType, lotVal, expVal) => {
@@ -118,7 +124,7 @@ export default function SmallLabelPrint({ navigate }) {
     }, 400)
   }
 
-  const resolveLabel = (code, ipopType, lotVal, expVal, gtinScan = false) => {
+  const resolveLabel = (code, ipopType, lotVal, expVal) => {
     const drug = findDrugByCode(code)
     if (!drug) {
       setError(`Drug not found (${code}). Import your drug list via Maintenance → Import Excel → Drugs (PHQ).`)
@@ -129,50 +135,60 @@ export default function SmallLabelPrint({ navigate }) {
     setIpop(ipopType)
     setLot(lotVal || '')
     setExp(expVal || '')
-    setFromGtinScan(gtinScan)
     setError('')
 
-    // Auto-print when we have everything needed:
-    //   Manual entry (6-char / 13-char) → preserve original behaviour: OP auto-prints
-    //   regardless of lot, IP auto-prints if exp present.
-    //   GTIN scan → require both lot and exp (for IP); if either missing, leave the
-    //   form open so the user can fill them in.
-    const hasExp = expVal && expVal !== 'na----'
-    const hasLot = lotVal && lotVal !== 'na----'
-    if (gtinScan) {
-      const ready = ipopType === 'IP' ? (hasExp && hasLot) : hasLot
-      if (ready) autoPrintLabel(drug, ipopType, lotVal, expVal)
-    } else {
-      if (ipopType === 'OP' || (ipopType === 'IP' && hasExp)) {
-        autoPrintLabel(drug, ipopType, lotVal, expVal)
-      }
+    // Auto-print policy:
+    //   OP labels — auto-print as soon as the item code resolves (lot may be
+    //     blank; OP carries no expiry).
+    //   IP labels — NEVER auto-print. Always open the form so the user can
+    //     review / edit / fill in Lot and Use Before. Blank values are
+    //     allowed; the printed label will show an underline placeholder.
+    if (ipopType === 'OP') {
+      autoPrintLabel(drug, ipopType, lotVal, expVal)
     }
   }
 
-  const processInput = (raw) => {
+  /**
+   * Classify a scanned/typed value into the underlying intent.
+   * Returns one of:
+   *   { kind: 'op-code',  itemCode }                                      6-char item code
+   *   { kind: 'ip-code',  itemCode }                                      13+ char IP-style code
+   *   { kind: 'gtin',     decoded: [gtin, lot, expRaw], rawBarcode }      GTIN barcode
+   *   { kind: 'unknown' }
+   * Pure helper — no React state changes — so both Standard and Short-Exp tabs can share it.
+   */
+  const classifyInput = (raw) => {
     const val = raw.trim().toUpperCase()
-    if (!val) return
-    clearLabel()
-
-    if (val.length === 6) {
-      // 6-char item code → OP
-      resolveLabel(val, 'OP', '', '')
-    } else if (/^\d{8,}/.test(val) || /^\](C|d|Q|e)/.test(raw)) {
-      // Starts with digits or has GS1 symbology prefix → GTIN barcode
+    if (!val) return { kind: 'unknown' }
+    if (val.length === 6) return { kind: 'op-code', itemCode: val }
+    if (/^\d{8,}/.test(val) || /^\](C|d|Q|e)/.test(raw)) {
       const decoded = decodeBarcode(raw.trim(), settings.barcodeMethod || 'gs1')
-      if (!decoded) { setError('Could not decode barcode'); return }
-      setPendingBarcode({ decoded, rawBarcode: raw.trim() })
-      setShowIPOP(true)
-    } else if (val.length === 13) {
-      // 13-char IP barcode: extract chars 5-10 for item code
-      const code = val.substring(4, 10)
-      resolveLabel(code, 'IP', '', '')
-    } else if (val.length > 6) {
-      // Try extracting item code from pos 5-10 (IP format)
-      const code = val.substring(4, 10)
-      resolveLabel(code, 'IP', '', '')
-    } else {
-      setError('Unrecognised input. Enter a 6-char item code or scan a barcode.')
+      if (!decoded) return { kind: 'unknown' }
+      return { kind: 'gtin', decoded, rawBarcode: raw.trim() }
+    }
+    if (val.length > 6) {
+      // 13-char IP barcode (or any longer non-numeric input) — chars 5-10 hold the item code
+      return { kind: 'ip-code', itemCode: val.substring(4, 10) }
+    }
+    return { kind: 'unknown' }
+  }
+
+  /** Resolve a GTIN-decoded payload → item code (uses the GTIN map, falls back to last-6). */
+  const itemCodeFromGtin = (decoded) => {
+    const gtin = decoded[0]
+    const normGtin = gtin ? normaliseGtin(gtin) : null
+    return (normGtin && findByGtin(normGtin)) || (normGtin ? normGtin.substring(8, 14) : '')
+  }
+
+  const processInput = (raw) => {
+    if (!raw.trim()) return
+    clearLabel()
+    const c = classifyInput(raw)
+    switch (c.kind) {
+      case 'op-code': resolveLabel(c.itemCode, 'OP', '', ''); break
+      case 'ip-code': resolveLabel(c.itemCode, 'IP', '', ''); break
+      case 'gtin':    setPendingBarcode({ decoded: c.decoded, rawBarcode: c.rawBarcode }); setShowIPOP(true); break
+      default:        setError('Unrecognised input. Enter a 6-char item code or scan a barcode.')
     }
   }
 
@@ -187,15 +203,12 @@ export default function SmallLabelPrint({ navigate }) {
     setShowIPOP(false)
     if (!pendingBarcode) return
     const { decoded } = pendingBarcode
-    const [gtin, lotVal, expRaw] = decoded
-    // Normalise GTIN to 14 digits, then look up in map; fall back to last-6-digits extraction
-    const normGtin = gtin ? normaliseGtin(gtin) : null
-    const mappedCode = normGtin ? findByGtin(normGtin) : null
-    const code = mappedCode || (normGtin ? normGtin.substring(8, 14) : '')
+    const [, lotVal, expRaw] = decoded
+    const code = itemCodeFromGtin(decoded)
     // IP label: include expiry date from barcode.
     // OP label: lot/batch only — no expiry on label.
     const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
-    resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted, true)
+    resolveLabel(code, type, lotVal !== 'na----' ? lotVal : '', expFormatted)
     setPendingBarcode(null)
   }
 
@@ -210,14 +223,26 @@ export default function SmallLabelPrint({ navigate }) {
     if (tab === 'standard') inputRef.current?.focus()
   }
 
-  // Short Exp tab
-  const processShortExp = (code) => {
-    const val = code.trim().toUpperCase()
-    if (!val) return
-    const drug = findDrugByCode(val)
-    if (!drug) { setError(`Item code not found: ${val}`); return }
-    const days = getExpAfterOpenDays(val)
-    if (days === null) { setError('No expiry-after-open rule found for this item.'); return }
+  // Short Exp tab — accepts any of: 6-char OP code, 13-char IP barcode, GTIN barcode.
+  // The result is always an after-opening label (IP-style) using the per-item rule.
+  const processShortExp = (raw) => {
+    if (!raw.trim()) return
+    setError('')
+    const c = classifyInput(raw)
+    let code = ''
+    switch (c.kind) {
+      case 'op-code':
+      case 'ip-code': code = c.itemCode; break
+      case 'gtin':    code = itemCodeFromGtin(c.decoded); break
+      default: setError('Unrecognised input. Enter a 6-char item code or scan a barcode.'); return
+    }
+    if (!code) { setError('Could not resolve item code from scan.'); return }
+
+    const drug = findDrugByCode(code)
+    if (!drug) { setError(`Item code not found: ${code}`); return }
+    const days = getExpAfterOpenDays(drug.itemCode)
+    if (days === null) { setError(`No expiry-after-open rule for ${drug.itemCode}. Add one in Maintenance → Expiry After Opening.`); return }
+
     const expDate = new Date()
     expDate.setDate(expDate.getDate() + parseInt(days, 10))
     const expStr = formatDateLabel(expDate)
@@ -227,9 +252,8 @@ export default function SmallLabelPrint({ navigate }) {
     setIpop('IP')
     setLot(batchNo)
     setExp(expStr)
-    setError('')
 
-    // Short-exp always has all info → print immediately
+    // Short-exp always has all info (calculated locally) → print immediately
     const html = buildSmallLabelHTML(drug.name, 'IP', batchNo, expStr, drug.itemCode, settings)
     printLabel(html, 1, settings)
     setSuccess(true)
@@ -296,7 +320,7 @@ export default function SmallLabelPrint({ navigate }) {
                     autoFocus
                   />
                   <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    6-char code → OP label · GTIN barcode → IP/OP selection · 13-char IP barcode → IP label
+                    6-char code → OP auto-prints · GTIN barcode → IP/OP selection · 13-char IP barcode → IP form (review Lot &amp; Use Before before printing)
                   </div>
                 </div>
 
@@ -331,27 +355,27 @@ export default function SmallLabelPrint({ navigate }) {
                       {ipop === 'IP' && (
                         <div style={{ marginTop: 8 }}>
                           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
-                            Expiry date on label
+                            Use Before date {(!exp || exp === 'na----') && <span style={{ color: 'var(--danger)' }}>(blank → printed as underline)</span>}
                           </label>
                           <input
                             className="form-input"
                             style={{ width: 160, fontSize: 13 }}
-                            placeholder="e.g. 01012028 or 01-Jan-2028"
+                            placeholder="e.g. 01012028 or 01-Jan-2028 (or leave blank)"
                             value={exp}
                             onChange={e => setExp(parseUserExpiry(e.target.value))}
                           />
                         </div>
                       )}
                       {ipop !== 'IP' && exp && <div style={{ fontSize: 13, marginTop: 4 }}>Use before: <strong>{exp}</strong></div>}
-                      {fromGtinScan ? (
+                      {ipop === 'IP' ? (
                         <div style={{ marginTop: 8 }}>
                           <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
-                            Lot / batch number {(!lot || lot === 'na----') && <span style={{ color: 'var(--danger)' }}>(missing from barcode — please enter)</span>}
+                            Lot / batch number {(!lot || lot === 'na----') && <span style={{ color: 'var(--danger)' }}>(blank → printed as underline)</span>}
                           </label>
                           <input
                             className="form-input"
                             style={{ width: 200, fontSize: 13, fontFamily: 'monospace' }}
-                            placeholder="Type the lot / batch number"
+                            placeholder="Type the lot / batch number (or leave blank for underline)"
                             value={lot && lot !== 'na----' ? lot : ''}
                             onChange={e => setLot(e.target.value)}
                           />
@@ -379,12 +403,15 @@ export default function SmallLabelPrint({ navigate }) {
                   <input
                     ref={shortExpRef}
                     className="form-input large"
-                    placeholder="Enter 6-char item code and press Enter…"
+                    placeholder="6-char code · 13-char IP barcode · GTIN — then press Enter"
                     value={shortExpInput}
                     onChange={e => setShortExpInput(e.target.value)}
                     onKeyDown={handleShortExpKey}
                     autoComplete="off"
                   />
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Any scan resolves to the same item — expiry is calculated from today using the after-opening rule.
+                  </div>
                 </div>
                 <button className="btn btn-primary" onClick={() => processShortExp(shortExpInput)} style={{ marginBottom: 12 }}>
                   Lookup
