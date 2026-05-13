@@ -320,15 +320,26 @@ export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, ite
     : half
   const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;font-weight:${titleW};`
   const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:${valueW};line-height:1.15;margin-top:0.5mm;`
+  // Underline placeholders for blank values — top-half line is white on black
+  // when the item is flagged, so it remains visible against the black fill.
+  const batchTrim = (batchNo || '').toString().trim()
+  const expTrim   = (expiry  || '').toString().trim()
+  const topLineColor = isBlackBg ? '#fff' : '#000'
+  const blankSpan = (color) =>
+    `<span style="display:block;border-bottom:0.25mm solid ${color};height:${valuePt * 0.5}mm;margin-top:0.5mm;"></span>`
+  const valueLine = (raw, color) =>
+    raw
+      ? `<div style="${value}">${raw}</div>`
+      : blankSpan(color)
   return `
     <div style="display:flex;flex-direction:column;width:100%;height:100%;">
       <div style="${topHalf}">
         <div style="${title}">Batch No:</div>
-        <div style="${value}">${batchNo || ''}</div>
+        ${valueLine(batchTrim, topLineColor)}
       </div>
       <div style="${half}">
         <div style="${title}">Use Before:</div>
-        <div style="${value}">${expiry || ''}</div>
+        ${valueLine(expTrim, '#000')}
       </div>
     </div>
   `
@@ -378,6 +389,15 @@ export function buildSmallLabelHTML(drugName, ipop, lot, exp, itemCode, settings
   `
 }
 
+// Render a value or a write-in-by-hand underline placeholder when blank.
+// Used on labels where missing batch / expiry should still leave a visible row
+// for staff to pen-fill rather than silently disappearing.
+function _valueOrUnderline(v, sizePt) {
+  const trimmed = v && v !== 'na----' ? String(v).trim() : ''
+  if (trimmed) return `<strong style="font-size:${sizePt}pt;">${trimmed}</strong>`
+  return `<span style="display:inline-block;min-width:18mm;border-bottom:0.25mm solid #000;height:${sizePt * 0.45}mm;vertical-align:bottom;"></span>`
+}
+
 // ABX / OPLabel (3-column, for batch record sheet)
 export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings = {}) {
   const drugStyle = isBlackBgItem(itemCode) ? 'background:black;color:white;' : ''
@@ -386,8 +406,8 @@ export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings 
   const col = `
     <div style="flex:1;padding:1mm;${drugStyle}">
       <div style="font-size:${dfs}pt;font-weight:bold;min-height:12mm;display:flex;align-items:center;justify-content:center;text-align:center;">${drugName}</div>
-      <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No:<br/><span style="font-size:${bfs + 2}pt;font-weight:bold;">${batchNo}</span></div>
-      <div style="font-size:${bfs}pt;margin-top:1mm;">Use Before:<br/><span style="font-size:${bfs + 4}pt;font-weight:bold;">${expiry}</span></div>
+      <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No:<br/>${_valueOrUnderline(batchNo, bfs + 2)}</div>
+      <div style="font-size:${bfs}pt;margin-top:1mm;">Use Before:<br/>${_valueOrUnderline(expiry, bfs + 4)}</div>
     </div>
   `
   return `<div style="display:flex;width:100%;height:100%;">${col}${col}${col}</div>`
@@ -399,8 +419,8 @@ export function buildExtempLabelHTML(description, batchNo, expiry, storage, warn
   const bfs = settings.batchFontSize || 7
   return `
     <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
-    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No.: <strong>${batchNo}</strong></div>
-    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
+    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No.: ${_valueOrUnderline(batchNo, bfs)}</div>
+    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: ${_valueOrUnderline(expiry, bfs)}</div>
     ${storage ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${storage}</div>` : ''}
     ${warning ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${warning}</div>` : ''}
     ${note    ? `<div style="font-size:${Math.max(bfs - 1, 5)}pt;margin-top:0.5mm;">${note}</div>` : ''}
@@ -413,7 +433,7 @@ export function buildPrepackLabelHTML(description, batchNo, expiry, settings = {
   const bfs = settings.batchFontSize || 7
   return `
     <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
-    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No: <strong>${batchNo}</strong></div>
-    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: <strong>${expiry}</strong></div>
+    <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No: ${_valueOrUnderline(batchNo, bfs)}</div>
+    <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: ${_valueOrUnderline(expiry, bfs)}</div>
   `
 }

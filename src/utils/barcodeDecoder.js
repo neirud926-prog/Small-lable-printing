@@ -457,3 +457,48 @@ export function formatExpiry(exp) {
   // parts = ['01', 'Jan', '2028'] — already title-case from en-GB locale
   return `${parts[0]}-${parts[1]}-${parts[2]}`
 }
+
+// ── Shared input classification ──────────────────────────────────────────────
+// Every scan-friendly screen accepts the same three shapes:
+//   - 6-char item code         → manual lookup
+//   - 13-char IP-style barcode → item code at chars 5-10
+//   - GTIN / GS1 barcode       → run through decodeBarcode, look up via GTIN map
+//
+// Centralised so SmallLabelPrint, PrintGtinLabel, PrintPickList, and any future
+// scan-aware screen share one parser instead of carrying divergent copies.
+//
+// Returns one of:
+//   { kind: 'op-code',  itemCode }
+//   { kind: 'ip-code',  itemCode }
+//   { kind: 'gtin',     decoded, rawBarcode }      (decoded = [gtin, lot, expRaw])
+//   { kind: 'unknown' }
+export function classifyScannedInput(raw, method = 'gs1') {
+  if (!raw) return { kind: 'unknown' }
+  const trimmed = raw.trim()
+  const upper   = trimmed.toUpperCase()
+  if (!upper) return { kind: 'unknown' }
+  if (upper.length === 6) return { kind: 'op-code', itemCode: upper }
+  if (/^\d{8,}/.test(upper) || /^\](C|d|Q|e)/.test(trimmed)) {
+    const decoded = decodeBarcode(trimmed, method)
+    if (!decoded) return { kind: 'unknown' }
+    return { kind: 'gtin', decoded, rawBarcode: trimmed }
+  }
+  if (upper.length > 6) return { kind: 'ip-code', itemCode: upper.substring(4, 10) }
+  return { kind: 'unknown' }
+}
+
+// Resolve a GTIN-decoded payload → item code. Uses the GTIN map if a lookup
+// function is supplied (so this file stays storage-agnostic); falls back to
+// the last six digits of the normalised GTIN.
+export function itemCodeFromDecodedGtin(decoded, findByGtin) {
+  if (!decoded) return ''
+  const gtin = decoded[0]
+  if (!gtin) return ''
+  const norm = normaliseGtin(gtin)
+  if (!norm) return ''
+  if (typeof findByGtin === 'function') {
+    const mapped = findByGtin(norm)
+    if (mapped) return mapped
+  }
+  return norm.substring(8, 14)
+}

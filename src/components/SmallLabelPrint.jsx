@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { decodeBarcode, formatExpiry, isResultValid, normaliseGtin } from '../utils/barcodeDecoder'
+import { formatExpiry, classifyScannedInput, itemCodeFromDecodedGtin } from '../utils/barcodeDecoder'
 import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
@@ -148,42 +148,12 @@ export default function SmallLabelPrint({ navigate }) {
     }
   }
 
-  /**
-   * Classify a scanned/typed value into the underlying intent.
-   * Returns one of:
-   *   { kind: 'op-code',  itemCode }                                      6-char item code
-   *   { kind: 'ip-code',  itemCode }                                      13+ char IP-style code
-   *   { kind: 'gtin',     decoded: [gtin, lot, expRaw], rawBarcode }      GTIN barcode
-   *   { kind: 'unknown' }
-   * Pure helper — no React state changes — so both Standard and Short-Exp tabs can share it.
-   */
-  const classifyInput = (raw) => {
-    const val = raw.trim().toUpperCase()
-    if (!val) return { kind: 'unknown' }
-    if (val.length === 6) return { kind: 'op-code', itemCode: val }
-    if (/^\d{8,}/.test(val) || /^\](C|d|Q|e)/.test(raw)) {
-      const decoded = decodeBarcode(raw.trim(), settings.barcodeMethod || 'gs1')
-      if (!decoded) return { kind: 'unknown' }
-      return { kind: 'gtin', decoded, rawBarcode: raw.trim() }
-    }
-    if (val.length > 6) {
-      // 13-char IP barcode (or any longer non-numeric input) — chars 5-10 hold the item code
-      return { kind: 'ip-code', itemCode: val.substring(4, 10) }
-    }
-    return { kind: 'unknown' }
-  }
-
-  /** Resolve a GTIN-decoded payload → item code (uses the GTIN map, falls back to last-6). */
-  const itemCodeFromGtin = (decoded) => {
-    const gtin = decoded[0]
-    const normGtin = gtin ? normaliseGtin(gtin) : null
-    return (normGtin && findByGtin(normGtin)) || (normGtin ? normGtin.substring(8, 14) : '')
-  }
+  const classify = (raw) => classifyScannedInput(raw, settings.barcodeMethod || 'gs1')
 
   const processInput = (raw) => {
     if (!raw.trim()) return
     clearLabel()
-    const c = classifyInput(raw)
+    const c = classify(raw)
     switch (c.kind) {
       case 'op-code': resolveLabel(c.itemCode, 'OP', '', ''); break
       case 'ip-code': resolveLabel(c.itemCode, 'IP', '', ''); break
@@ -204,7 +174,7 @@ export default function SmallLabelPrint({ navigate }) {
     if (!pendingBarcode) return
     const { decoded } = pendingBarcode
     const [, lotVal, expRaw] = decoded
-    const code = itemCodeFromGtin(decoded)
+    const code = itemCodeFromDecodedGtin(decoded, findByGtin)
     // IP label: include expiry date from barcode.
     // OP label: lot/batch only — no expiry on label.
     const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
@@ -228,12 +198,12 @@ export default function SmallLabelPrint({ navigate }) {
   const processShortExp = (raw) => {
     if (!raw.trim()) return
     setError('')
-    const c = classifyInput(raw)
+    const c = classify(raw)
     let code = ''
     switch (c.kind) {
       case 'op-code':
       case 'ip-code': code = c.itemCode; break
-      case 'gtin':    code = itemCodeFromGtin(c.decoded); break
+      case 'gtin':    code = itemCodeFromDecodedGtin(c.decoded, findByGtin); break
       default: setError('Unrecognised input. Enter a 6-char item code or scan a barcode.'); return
     }
     if (!code) { setError('Could not resolve item code from scan.'); return }

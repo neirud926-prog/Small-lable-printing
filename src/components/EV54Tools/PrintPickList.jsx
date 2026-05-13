@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { findDrugByCode, getItemLocation, getMobileShelfBin, findEV54Drug, getSettings } from '../../utils/storage'
+import { findDrugByCode, getItemLocation, getMobileShelfBin, findEV54Drug, getSettings, findByGtin } from '../../utils/storage'
 import { formatDateLabel } from '../../utils/batchNumber'
 import { printPickList } from '../../utils/pickListPrint'
+import { classifyScannedInput, itemCodeFromDecodedGtin } from '../../utils/barcodeDecoder'
 
 export default function PrintPickList() {
   const [rows, setRows]             = useState([])
@@ -28,9 +29,21 @@ export default function PrintPickList() {
   }
 
   const addRow = () => {
-    const up = code.trim().toUpperCase()
-    if (up.length !== 6) {
-      setError('Item code must be 6 characters')
+    const raw = code.trim()
+    // Accept 6-char item code, 13-char IP barcode, or GTIN scan — all resolve to an item code.
+    const c = classifyScannedInput(raw, getSettings().barcodeMethod || 'gs1')
+    let up = ''
+    switch (c.kind) {
+      case 'op-code':
+      case 'ip-code': up = c.itemCode; break
+      case 'gtin':    up = itemCodeFromDecodedGtin(c.decoded, findByGtin); break
+      default:
+        setError('Enter a 6-char item code or scan a barcode')
+        codeRef.current?.focus()
+        return
+    }
+    if (!up) {
+      setError('Could not resolve item code from input')
       codeRef.current?.focus()
       return
     }
@@ -141,16 +154,15 @@ export default function PrintPickList() {
       <div className="card mb-12">
         <div className="form-label mb-8">📝 Add Item</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 180px', minWidth: 140 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Item Code (6 chars)</div>
+          <div style={{ flex: '1 1 240px', minWidth: 200 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Item Code or Scan</div>
             <input
               ref={codeRef}
               className="form-input"
-              placeholder="ABCD01"
+              placeholder="ABCD01 · 13-char IP · GTIN"
               value={code}
               onChange={e => { setCode(e.target.value.toUpperCase()); if (error) setError('') }}
               onKeyDown={onCodeKeyDown}
-              maxLength={6}
               autoComplete="off"
               style={{ fontFamily: 'monospace', letterSpacing: 1, textTransform: 'uppercase' }}
             />

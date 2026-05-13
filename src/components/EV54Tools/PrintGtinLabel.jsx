@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import QRCode from 'qrcode'
-import { findDrugByCode, findGtinByCode, getSettings } from '../../utils/storage'
+import { findDrugByCode, findGtinByCode, getSettings, findByGtin } from '../../utils/storage'
+import { classifyScannedInput, itemCodeFromDecodedGtin } from '../../utils/barcodeDecoder'
 
 export default function PrintGtinLabel() {
   const [itemCode, setItemCode]   = useState('')
@@ -16,19 +17,39 @@ export default function PrintGtinLabel() {
     setDrug(null); setGtin(null); setStatus('idle'); setErrorMsg('')
   }
 
+  // Accept any of: 6-char item code · 13-char IP barcode · GTIN barcode.
+  // All paths resolve to a single (drug, gtin) pair for the QR label.
+  const resolveFromCode = (code) => {
+    const d = findDrugByCode(code)
+    const g = d ? findGtinByCode(code) : null
+    setDrug(d || null)
+    setGtin(g || null)
+    if (!d)      setErrorMsg(`Item code not found in drug list: ${code}`)
+    else if (!g) setErrorMsg('No GTIN found for this item code. Check GTIN map in Maintenance.')
+  }
+
   const handleCodeChange = (val) => {
     const v = val.toUpperCase()
     setItemCode(v)
     setStatus('idle'); setErrorMsg('')
-    if (v.length === 6) {
-      const d = findDrugByCode(v)
-      const g = d ? findGtinByCode(v) : null
-      setDrug(d || null)
-      setGtin(g || null)
-      if (!d) setErrorMsg('Item code not found in drug list.')
-      else if (!g) setErrorMsg('No GTIN found for this item code. Check GTIN map in Maintenance.')
-    } else {
-      setDrug(null); setGtin(null)
+    const c = classifyScannedInput(val, getSettings().barcodeMethod || 'gs1')
+    switch (c.kind) {
+      case 'op-code':
+      case 'ip-code':
+        resolveFromCode(c.itemCode)
+        break
+      case 'gtin': {
+        const code = itemCodeFromDecodedGtin(c.decoded, findByGtin)
+        if (!code) { setDrug(null); setGtin(null); setErrorMsg('Could not resolve item code from scanned GTIN.'); break }
+        // Use the GTIN we just scanned directly — no need to round-trip through findGtinByCode
+        const d = findDrugByCode(code)
+        setDrug(d || null)
+        setGtin(c.decoded[0] || null)
+        if (!d) setErrorMsg(`Item code not found in drug list: ${code}`)
+        break
+      }
+      default:
+        setDrug(null); setGtin(null)
     }
   }
 
@@ -79,13 +100,12 @@ export default function PrintGtinLabel() {
       </div>
 
       <div className="form-group">
-        <label className="form-label">Item Code</label>
+        <label className="form-label">Item Code or Scan</label>
         <input
           ref={inputRef}
           className="form-input"
-          style={{ width: 120, fontFamily: 'monospace', letterSpacing: 2, textTransform: 'uppercase' }}
-          placeholder="e.g. METF01"
-          maxLength={6}
+          style={{ width: 280, fontFamily: 'monospace', letterSpacing: 1, textTransform: 'uppercase' }}
+          placeholder="6-char code · 13-char IP barcode · GTIN"
           value={itemCode}
           onChange={e => handleCodeChange(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && drug && gtin && handlePrint()}

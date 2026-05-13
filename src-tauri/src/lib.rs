@@ -269,17 +269,33 @@ $pd.add_PrintPage({
     if ($topBg) {
         $g.FillRectangle([System.Drawing.Brushes]::Black, 0.0, 0.0, $w, $halfH)
     }
-    $topBrush = if ($topBg) { $wht } else { $blk }
+    $topBrush    = if ($topBg) { $wht } else { $blk }
+    $topPenColor = if ($topBg) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::Black }
+    $topPen      = New-Object System.Drawing.Pen($topPenColor, 0.25)
+    $botPen      = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 0.25)
 
-    # Upper half: Batch No
+    $batchVal = [string]$d.batchNo
+    $expVal   = [string]$d.expiry
+
+    # Upper half: Batch No (blank → underline for write-in-by-hand)
     $y0 = $topPad
-    $g.DrawString("Batch No:",            $titleFont, $topBrush, $padX, $y0)
-    $g.DrawString([string]$d.batchNo,     $valueFont, $topBrush, $padX, ($y0 + $titleH + 0.4))
+    $g.DrawString("Batch No:", $titleFont, $topBrush, $padX, $y0)
+    if ($batchVal -ne '') {
+        $g.DrawString($batchVal, $valueFont, $topBrush, $padX, ($y0 + $titleH + 0.4))
+    } else {
+        $blankY = $y0 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)
+        $g.DrawLine($topPen, $padX, $blankY, ($w - $padX), $blankY)
+    }
 
     # Lower half: Use Before (always white background, black text)
     $y1 = $halfH + $topPad
-    $g.DrawString("Use Before:",          $titleFont, $blk, $padX, $y1)
-    $g.DrawString([string]$d.expiry,      $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+    $g.DrawString("Use Before:", $titleFont, $blk, $padX, $y1)
+    if ($expVal -ne '') {
+        $g.DrawString($expVal, $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+    } else {
+        $blankY = $y1 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)
+        $g.DrawLine($botPen, $padX, $blankY, ($w - $padX), $blankY)
+    }
 
     $e.HasMorePages = $false
 })
