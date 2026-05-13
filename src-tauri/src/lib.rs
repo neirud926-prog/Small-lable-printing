@@ -180,7 +180,8 @@ $pd.add_PrintPage({
     $charHB = [double]$d.batchFontSize * 0.353
     $lineY  = $y + 0.4 + $charHB * 0.85
     $batVal = [string]$d.batchNo
-    $batBlank = $isIP -and ($batVal -eq '')
+    # Blank lot draws an underline on both IP and OP labels — write-in-by-hand convention.
+    $batBlank = ($batVal -eq '')
     $g.DrawString("Bat. No.:", $bfBold,  $blk, $pl,   ($y + 0.4))
     $g.DrawString($batVal, $bfValue, $blk, $batX, ($y + 0.4))
     # Draw the underline whenever the user opted in via Settings, OR whenever
