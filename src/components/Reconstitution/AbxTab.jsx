@@ -58,9 +58,10 @@ export default function AbxTab() {
     const totalLabels = parseInt(factor) + 1
     printReconstitutionLabel(batchNo, expiry, totalLabels, settings, itemCode)
 
-    // Plus 1 standard small IP label (4-row layout with Packed/Checked sign blanks)
-    // for the batch record sheet.
-    const smallHtml = buildSmallLabelHTML(description, 'IP', batchNo, expiry, itemCode, settings)
+    // Plus 1 standard small label (4-row layout with Packed/Checked sign blanks)
+    // for the batch record sheet. Honours the IP/OP toggle:
+    //   IP → expiry row included; OP → expiry row suppressed (lot only).
+    const smallHtml = buildSmallLabelHTML(description, ipopToggle, batchNo, expiry, itemCode, settings)
     printLabel(smallHtml, 1, settings)
 
     // Save batch record
