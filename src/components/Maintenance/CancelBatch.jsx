@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getTodayInUseBatches, updateBatchStatus, resetCounter, getCounter } from '../../utils/storage'
 
@@ -11,24 +11,33 @@ export default function CancelBatch() {
   const ecCount   = getCounter('EC')
   const ipopCount = getCounter('IPOP')
 
+  const successTimer = useRef(null)
+  const showSuccess = (msg) => {
+    setSuccess(msg)
+    if (successTimer.current) clearTimeout(successTimer.current)
+    successTimer.current = setTimeout(() => setSuccess(''), 3000)
+  }
+  useEffect(() => () => {
+    if (successTimer.current) clearTimeout(successTimer.current)
+  }, [])
+
   const handleCancel = () => {
     if (!selected) return
     const batch = batches.find(b => b.batchNo === selected)
     if (!batch) return
     updateBatchStatus(batch.id, 'Cancel Order')
-    setSuccess(`Batch ${selected} has been cancelled.`)
+    showSuccess(`Batch ${selected} has been cancelled.`)
     setBatches(getTodayInUseBatches())
     setSelected('')
-    setTimeout(() => setSuccess(''), 3000)
   }
 
   const handleReset = (loc, val) => {
-    if (!val) return
-    resetCounter(loc, val)
-    setSuccess(`Counter for ${loc} reset to ${val}.`)
+    const parsed = parseInt(val, 10)
+    if (!Number.isFinite(parsed) || parsed < 1) return
+    const saved = resetCounter(loc, parsed)
+    showSuccess(`Counter for ${loc} reset to ${saved}.`)
     if (loc === 'EC') setEcReset('')
     else setIpopReset('')
-    setTimeout(() => setSuccess(''), 3000)
   }
 
   return (

@@ -162,7 +162,15 @@ export default function SmallLabelPrint({ navigate }) {
     }
   }
 
+  // Some scanners emit a TAB after (or inside) a barcode. Without this guard,
+  // Tab moves focus to the topbar search input — the next Enter then navigates
+  // to Drug Enquiry instead of printing the label. Swallow Tab so focus stays
+  // on the scan input; the scanner-emitted (or user-pressed) Enter then commits.
   const handleKeyDown = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      return
+    }
     if (e.key === 'Enter') {
       processInput(input)
       setInput('')
@@ -236,6 +244,10 @@ export default function SmallLabelPrint({ navigate }) {
   }
 
   const handleShortExpKey = (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      return
+    }
     if (e.key === 'Enter') {
       processShortExp(shortExpInput)
     }

@@ -118,7 +118,7 @@ export function updateBatchStatus(id, status) {
   const records = getBatchRecords()
   const idx = records.findIndex(r => r.id === id)
   if (idx !== -1) {
-    records[idx].status = status
+    records[idx] = { ...records[idx], status }
     save(KEYS.BATCH_RECORDS, records)
   }
 }
@@ -154,9 +154,12 @@ export function incrementCounter(location) {
   save(KEYS.BATCH_COUNTERS, all)
 }
 export function resetCounter(location, value) {
+  const parsed = parseInt(value, 10)
+  const n = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
   const all = getBatchCounters()
-  all[location] = { date: _todayYYMMDD(), n: parseInt(value, 10) || 1 }
+  all[location] = { date: _todayYYMMDD(), n }
   save(KEYS.BATCH_COUNTERS, all)
+  return n
 }
 
 // ── ITEM LOCATIONS ────────────────────────────────────────────────────────────
