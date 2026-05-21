@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getTodayInUseBatches, updateBatchStatus, resetCounter, getBatchCounters } from '../../utils/storage'
+import { getTodayInUseBatches, updateBatchStatus, resetCounter, getCounter } from '../../utils/storage'
 
 export default function CancelBatch() {
   const [batches, setBatches]     = useState(getTodayInUseBatches)
@@ -8,7 +8,8 @@ export default function CancelBatch() {
   const [success, setSuccess]     = useState('')
   const [ecReset, setEcReset]     = useState('')
   const [ipopReset, setIpopReset] = useState('')
-  const counters = getBatchCounters()
+  const ecCount   = getCounter('EC')
+  const ipopCount = getCounter('IPOP')
 
   const handleCancel = () => {
     if (!selected) return
@@ -74,7 +75,7 @@ export default function CancelBatch() {
       <div className="card">
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Reset Batch Counters</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-          Current counters: EC = <strong>{counters.EC}</strong> · IP/OP = <strong>{counters.IPOP}</strong>
+          Current counters: EC = <strong>{ecCount}</strong> · IP/OP = <strong>{ipopCount}</strong>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
