@@ -243,9 +243,9 @@ Type the number of vials you are mixing today. The app prints this many small la
 Use the toggle under *Label type*. IP labels show the expiry line; OP labels do not. Most ward antibiotics are IP.
 
 **⑤ Click *🖨 Confirm & Print*.**
-The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and the batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
+The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and this item's batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
 
-The **Batch No.** field shows how the batch will look, for example `GSK-260421 02` — the manufacturer prefix + today's date + a two-digit counter. Untick *Include prefix in batch no.* if you do not want the manufacturer prefix on the label.
+The **Batch No.** field shows how the batch will look, for example `A457-26101902` — the item's prefix + today's date + a two-digit counter. Each item has its own counter that restarts at 01 every day, so printing *AUGM06* (`A457-26101901`) and then *AUGM02* gives `A156-26101901`, not `…02`. Untick *Include prefix in batch no.* if you do not want the manufacturer prefix on the label.
 
 #### What if something goes wrong?
 

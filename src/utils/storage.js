@@ -128,38 +128,78 @@ export function getTodayInUseBatches() {
 }
 
 // ── BATCH COUNTERS ────────────────────────────────────────────────────────────
-// Stored shape: { [location]: { date: 'YYMMDD', n: <int> } }
-// On a date-mismatch (or legacy numeric value) the counter resets to 1, so
-// the trailing two digits of every batch number restart at 01 each calendar day.
+// Stored shape: { '<location>:<ITEMCODE>': { date: 'YYMMDD', n: <int> } }
+// Each item keeps its own daily sequence per location, so AUGM06 and AUGM02
+// printed on the same day both start at 01. On a date-mismatch the counter
+// resets to 1, so the trailing digits restart at 01 each calendar day.
+// Legacy location-only entries ({ EC: 1, IPOP: { date, n } }) from older
+// versions are left untouched and are no longer read for item lots.
 function _todayYYMMDD() {
   const d = new Date()
   return String(d.getFullYear()).slice(-2)
        + String(d.getMonth() + 1).padStart(2, '0')
        + String(d.getDate()).padStart(2, '0')
 }
+function _counterKey(location, itemCode) {
+  const code = (itemCode || '').trim().toUpperCase()
+  return code ? `${location}:${code}` : location
+}
+// Sequence number of a batch number from today's series ('A457-26101902' → 2),
+// or null if it is not from today.
+function _todaySeq(batchNo) {
+  const m = String(batchNo || '').match(new RegExp(`${_todayYYMMDD()}(\\d+)$`))
+  return m ? parseInt(m[1], 10) : null
+}
+// Highest sequence already issued today for this item, read back from the
+// batch records. Used only when the item has no counter entry for today, so
+// the first lot after upgrading (when today's numbers came from the old shared
+// location counter) can never repeat a number that is already on a label.
+function _maxIssuedToday(location, itemCode) {
+  const code = (itemCode || '').trim().toUpperCase()
+  if (!code) return 0
+  const today = new Date().toLocaleDateString('en-CA')
+  return getBatchRecords().reduce((max, r) => {
+    if (r.date !== today || r.location !== location) return max
+    if ((r.itemCode || '').toUpperCase() !== code) return max
+    const n = _todaySeq(r.batchNo)
+    return n ? Math.max(max, n) : max
+  }, 0)
+}
 export function getBatchCounters()         { return load(KEYS.BATCH_COUNTERS, {}) }
-export function getCounter(location)       {
-  const entry = getBatchCounters()[location]
-  if (!entry || typeof entry !== 'object' || entry.date !== _todayYYMMDD()) return 1
+export function getCounter(location, itemCode) {
+  const entry = getBatchCounters()[_counterKey(location, itemCode)]
+  if (!entry || typeof entry !== 'object' || entry.date !== _todayYYMMDD()) {
+    return _maxIssuedToday(location, itemCode) + 1
+  }
   return entry.n || 1
 }
-export function incrementCounter(location) {
+// After a lot is printed. When the printed batch number is passed, the next
+// number is the one after it — independent of whether its batch record has
+// already been saved (which getCounter would otherwise count a second time).
+export function incrementCounter(location, itemCode, batchNo) {
+  const current = _todaySeq(batchNo) ?? getCounter(location, itemCode)
   const all = getBatchCounters()
-  const today = _todayYYMMDD()
-  const entry = all[location]
-  const current = (entry && typeof entry === 'object' && entry.date === today)
-    ? (entry.n || 1)
-    : 1
-  all[location] = { date: today, n: current + 1 }
+  all[_counterKey(location, itemCode)] = { date: _todayYYMMDD(), n: current + 1 }
   save(KEYS.BATCH_COUNTERS, all)
 }
-export function resetCounter(location, value) {
+export function resetCounter(location, itemCode, value) {
   const parsed = parseInt(value, 10)
   const n = Number.isFinite(parsed) && parsed >= 1 ? parsed : 1
   const all = getBatchCounters()
-  all[location] = { date: _todayYYMMDD(), n }
+  all[_counterKey(location, itemCode)] = { date: _todayYYMMDD(), n }
   save(KEYS.BATCH_COUNTERS, all)
   return n
+}
+/** Today's per-item counters: [{ location, itemCode, n }] where n is the next number. */
+export function getTodayItemCounters() {
+  const today = _todayYYMMDD()
+  return Object.entries(getBatchCounters())
+    .filter(([k, v]) => k.includes(':') && v && typeof v === 'object' && v.date === today)
+    .map(([k, v]) => {
+      const i = k.indexOf(':')
+      return { location: k.slice(0, i), itemCode: k.slice(i + 1), n: v.n || 1 }
+    })
+    .sort((a, b) => a.location.localeCompare(b.location) || a.itemCode.localeCompare(b.itemCode))
 }
 
 // ── ITEM LOCATIONS ────────────────────────────────────────────────────────────

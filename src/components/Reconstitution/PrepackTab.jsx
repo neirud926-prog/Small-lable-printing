@@ -33,7 +33,7 @@ export default function PrepackTab() {
       setExpiry(formatDateLabel(d))
     }
     const prefix = item ? item.prefix : ''
-    setBatchNo(generateBatchNo(storageKey, prefix, !!prefix))
+    setBatchNo(generateBatchNo(storageKey, prefix, !!prefix, drugCode))
   }, [drugCode])
 
   const finalDescription = description + (strength ? ` ${strength}${unit}` : '')
@@ -68,7 +68,7 @@ export default function PrepackTab() {
       notes: `Prepack ${strength}${unit}`,
     })
 
-    commitBatchNo(storageKey)
+    commitBatchNo(storageKey, drugCode, batchNo)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 2000)
     clearAll()

@@ -31,7 +31,7 @@ export default function ExtempTab() {
       setWarning(rule.warning || '')
     }
     const prefix = item ? item.prefix : ''
-    const bn = generateBatchNo('EC', prefix, !!prefix) + (getCounterSuffix())
+    const bn = generateBatchNo('EC', prefix, !!prefix, itemCode) + (getCounterSuffix())
     setBatchNo(bn)
   }, [itemCode])
 
@@ -56,7 +56,7 @@ export default function ExtempTab() {
       notes: `${factor} x Extemp`,
     })
 
-    commitBatchNo('EC')
+    commitBatchNo('EC', itemCode, batchNo)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 2000)
     clearAll()

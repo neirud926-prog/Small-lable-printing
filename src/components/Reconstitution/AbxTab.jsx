@@ -44,7 +44,7 @@ export default function AbxTab() {
 
   const recalcBatch = (code, abx) => {
     const pfx = abx ? abx.prefix : ''
-    const bn = generateBatchNo(storageKey, pfx, true)
+    const bn = generateBatchNo(storageKey, pfx, true, code)
     setBatchNo(bn)
   }
 
@@ -76,7 +76,7 @@ export default function AbxTab() {
       notes: `${factor} x ABX | ${manufacturer}`,
     })
 
-    commitBatchNo(storageKey)
+    commitBatchNo(storageKey, itemCode, batchNo)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 2000)
     handleClear()

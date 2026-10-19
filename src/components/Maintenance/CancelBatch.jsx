@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getTodayInUseBatches, updateBatchStatus, resetCounter, getCounter } from '../../utils/storage'
+import { getTodayInUseBatches, updateBatchStatus, resetCounter, getTodayItemCounters, getSettings } from '../../utils/storage'
 
 export default function CancelBatch() {
   const [batches, setBatches]     = useState(getTodayInUseBatches)
   const [selected, setSelected]   = useState('')
   const [success, setSuccess]     = useState('')
-  const [ecReset, setEcReset]     = useState('')
-  const [ipopReset, setIpopReset] = useState('')
-  const ecCount   = getCounter('EC')
-  const ipopCount = getCounter('IPOP')
+  const [resetLoc, setResetLoc]   = useState(() => getSettings().location === 'EC' ? 'EC' : 'IPOP')
+  const [resetCode, setResetCode] = useState('')
+  const [resetVal, setResetVal]   = useState('')
+  const itemCounters = getTodayItemCounters()
 
   const successTimer = useRef(null)
   const showSuccess = (msg) => {
@@ -31,13 +31,14 @@ export default function CancelBatch() {
     setSelected('')
   }
 
-  const handleReset = (loc, val) => {
-    const parsed = parseInt(val, 10)
-    if (!Number.isFinite(parsed) || parsed < 1) return
-    const saved = resetCounter(loc, parsed)
-    showSuccess(`Counter for ${loc} reset to ${saved}.`)
-    if (loc === 'EC') setEcReset('')
-    else setIpopReset('')
+  const handleReset = () => {
+    const code = resetCode.trim().toUpperCase()
+    const parsed = parseInt(resetVal, 10)
+    if (!code || !Number.isFinite(parsed) || parsed < 1) return
+    const saved = resetCounter(resetLoc, code, parsed)
+    showSuccess(`Counter for ${code} (${resetLoc}) reset to ${saved}.`)
+    setResetCode('')
+    setResetVal('')
   }
 
   return (
@@ -84,24 +85,34 @@ export default function CancelBatch() {
       <div className="card">
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 14 }}>Reset Batch Counters</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
-          Current counters: EC = <strong>{ecCount}</strong> · IP/OP = <strong>{ipopCount}</strong>
+          Each item has its own counter per location, restarting at 01 every day.
+          Next number today:{' '}
+          {itemCounters.length === 0
+            ? <strong>none issued yet</strong>
+            : itemCounters.map((c, i) => (
+                <span key={`${c.location}:${c.itemCode}`}>
+                  {i > 0 && ' · '}{c.itemCode} ({c.location === 'IPOP' ? 'IP/OP' : c.location}) = <strong>{c.n}</strong>
+                </span>
+              ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
           <div>
-            <div className="form-label mb-8">Reset EC Counter to:</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="form-input" type="number" min={1} value={ecReset} onChange={e => setEcReset(e.target.value)} placeholder="e.g. 1" />
-              <button className="btn btn-primary btn-sm" onClick={() => handleReset('EC', ecReset)}>Reset</button>
-            </div>
+            <div className="form-label mb-8">Location</div>
+            <select className="form-select" value={resetLoc} onChange={e => setResetLoc(e.target.value)}>
+              <option value="IPOP">IP/OP</option>
+              <option value="EC">EC</option>
+            </select>
           </div>
           <div>
-            <div className="form-label mb-8">Reset IP/OP Counter to:</div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="form-input" type="number" min={1} value={ipopReset} onChange={e => setIpopReset(e.target.value)} placeholder="e.g. 1" />
-              <button className="btn btn-primary btn-sm" onClick={() => handleReset('IPOP', ipopReset)}>Reset</button>
-            </div>
+            <div className="form-label mb-8">Item Code</div>
+            <input className="form-input" value={resetCode} onChange={e => setResetCode(e.target.value)} placeholder="e.g. AUGM06" />
           </div>
+          <div>
+            <div className="form-label mb-8">Reset counter to</div>
+            <input className="form-input" type="number" min={1} value={resetVal} onChange={e => setResetVal(e.target.value)} placeholder="e.g. 1" />
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={handleReset} disabled={!resetCode.trim() || !resetVal}>Reset</button>
         </div>
       </div>
     </div>
