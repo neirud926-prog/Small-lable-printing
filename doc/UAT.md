@@ -58,7 +58,7 @@
 | 4.5 | Expiry edit | Scan a barcode with no expiry; in IP mode type `01062025` | Expiry auto-formats to `01-Jun-2025` | ☐ Pass ☐ Fail | |
 | 4.6 | Silent print | Settings → enable Silent Print → scan barcode → confirm | Label prints directly with no OS print dialog | ☐ Pass ☐ Fail | |
 | 4.7 | Print dialog | Settings → disable Silent Print → confirm | OS print dialog shown before printing | ☐ Pass ☐ Fail | |
-| 4.8 | Batch counter increments | Print a label → check Maintenance → Batch Counters | Counter for the active location incremented by 1 | ☐ Pass ☐ Fail | |
+| 4.8 | Batch counter increments | Print a label → check Maintenance → Batch Counters | Counter for that item (active location) incremented by 1; other items' counters unchanged | ☐ Pass ☐ Fail | |
 | 4.9 | Unknown GTIN | Scan a barcode with a GTIN not in the GTIN map | Error message shown: "GTIN not found" | ☐ Pass ☐ Fail | |
 
 ### 4b — Short Expiry Tab

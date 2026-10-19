@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getExtempList, getExpiryRules, getSettings, addBatchRecord } from '../../utils/storage'
+import { getExtempList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildExtempLabelHTML } from '../../utils/labelPrint'
 
 export default function ExtempTab() {
   const [itemCode, setItemCode]       = useState('')
   const [description, setDescription] = useState('')
+  const [descFound, setDescFound]     = useState(true)
   const [batchNo, setBatchNo]         = useState('')
   const [expiry, setExpiry]           = useState('')
   const [storage, setStorage]         = useState('')
@@ -21,7 +22,9 @@ export default function ExtempTab() {
   useEffect(() => {
     if (!itemCode) { clearAll(); return }
     const item = extempList.find(e => e.itemCode === itemCode)
-    if (item) setDescription(item.description || '')
+    const desc = getItemDescription(itemCode)
+    setDescription(desc.description)
+    setDescFound(desc.found)
     const rules = getExpiryRules()
     const rule = rules.find(r => r.itemCode === itemCode && r.status === 'Active')
     if (rule) {
@@ -31,7 +34,7 @@ export default function ExtempTab() {
       setWarning(rule.warning || '')
     }
     const prefix = item ? item.prefix : ''
-    const bn = generateBatchNo('EC', prefix, !!prefix) + (getCounterSuffix())
+    const bn = generateBatchNo('EC', prefix, !!prefix, itemCode) + (getCounterSuffix())
     setBatchNo(bn)
   }, [itemCode])
 
@@ -40,6 +43,7 @@ export default function ExtempTab() {
   const handleConfirm = () => {
     if (!itemCode) { setError('Please select an item code.'); return }
     if (!expiry)   { setError('No expiry rule found — add one in Maintenance.'); return }
+    if (!descFound && !window.confirm(`${itemCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
 
     const copies = Math.ceil((parseInt(factor) + 2) / 2)
     const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings)
@@ -56,14 +60,14 @@ export default function ExtempTab() {
       notes: `${factor} x Extemp`,
     })
 
-    commitBatchNo('EC')
+    commitBatchNo('EC', itemCode, batchNo)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 2000)
     clearAll()
   }
 
   const clearAll = () => {
-    setItemCode(''); setDescription(''); setBatchNo(''); setExpiry('')
+    setItemCode(''); setDescription(''); setDescFound(true); setBatchNo(''); setExpiry('')
     setStorage(''); setWarning(''); setFactor(1); setError('')
   }
 
@@ -84,6 +88,7 @@ export default function ExtempTab() {
         <div className="form-group">
           <label className="form-label">Description</label>
           <input className="form-input" value={description} readOnly style={{ background: 'var(--bg)' }} />
+          {!descFound && <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 4 }}>⚠ Not in item list — showing item code</div>}
         </div>
         <div className="form-group">
           <label className="form-label">No. of Bottles / Units</label>

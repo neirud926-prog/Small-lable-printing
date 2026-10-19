@@ -231,7 +231,7 @@ All three tabs work the same way: pick an item code, check the numbers the app f
 Follow the red numbers on the picture above.
 
 **① Choose an item code from the *Item Code* drop-down.**
-Click the arrow on the right of the box and pick the antibiotic you are mixing (for example *AUGIV* for Augmentin 1.2g Inj). As soon as you pick, the app fills in **Drug Description** below.
+Click the arrow on the right of the box and pick the antibiotic you are mixing (for example *AUGIV* for Augmentin 1.2g Inj). As soon as you pick, the app fills in **Drug Description** below from the item list (*Drug (PHQ)*). If the code is not in the item list, the item code is shown with *⚠ Not in item list* and the app asks before printing.
 
 **② Choose a manufacturer from the *Manufacturer* drop-down.**
 Only the manufacturers with an **Active** expiry rule for this drug appear here. If the list is empty, an admin needs to add an expiry rule in *Maintenance → Expiry Rules*. The **Use Before** date on the right side is worked out from this manufacturer's shelf-life rule (for example *14 days after opening*).
@@ -243,9 +243,9 @@ Type the number of vials you are mixing today. The app prints this many small la
 Use the toggle under *Label type*. IP labels show the expiry line; OP labels do not. Most ward antibiotics are IP.
 
 **⑤ Click *🖨 Confirm & Print*.**
-The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and the batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
+The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and this item's batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
 
-The **Batch No.** field shows how the batch will look, for example `GSK-260421 02` — the manufacturer prefix + today's date + a two-digit counter. Untick *Include prefix in batch no.* if you do not want the manufacturer prefix on the label.
+The **Batch No.** field shows how the batch will look, for example `A457-26101902` — the item's prefix + today's date + a two-digit counter. Each item has its own counter that restarts at 01 every day, so printing *AUGM06* (`A457-26101901`) and then *AUGM02* gives `A156-26101901`, not `…02`. Untick *Include prefix in batch no.* if you do not want the manufacturer prefix on the label.
 
 #### What if something goes wrong?
 
@@ -417,6 +417,8 @@ Once you are in, Maintenance is split into **four groups** down the left side. F
 ### 7c. The Products sub-tabs
 
 Click **Products** and the main area shows five mini-tabs across the top: **Drug (PHQ) · ABX · Prepack · Extemp · Exp After Open**. Each tab shows a searchable table with **+ Add**, edit (✏️), and delete (🗑️) buttons. Use these when you want to add or fix a single item by hand.
+
+Drug descriptions always come from the **Drug (PHQ)** item list. The ABX, Prepack, Extemp and Exp After Open tabs show that description next to each code (or *⚠ Not in item list*); to change the wording on a label, fix the item list, not these tabs.
 
 For bulk changes (hundreds of drugs at once), use **Import Excel** instead — it is faster and less error-prone.
 

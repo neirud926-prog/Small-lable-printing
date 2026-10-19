@@ -98482,17 +98482,6 @@
       "id": "1775821420575_40"
     },
     {
-      "itemCode": "OSEL10",
-      "manufacturer": "ROCHE",
-      "shelfLifeValue": 17,
-      "shelfLifeUnit": "Days",
-      "storage": "Refrigerate",
-      "warning": "None",
-      "note": "None",
-      "status": "Suspended",
-      "id": "1775821420575_41"
-    },
-    {
       "itemCode": "PHEN18",
       "manufacturer": "ATHLONE",
       "shelfLifeValue": 7,
@@ -98756,13 +98745,6 @@
       "packSize": "",
       "description": "MYCOPHENOLATE MOFETIL SUSPENSION 200MG/ML",
       "id": "1775821420575_13"
-    },
-    {
-      "itemCode": "OSEL10",
-      "prefix": "OSE",
-      "packSize": "",
-      "description": "OSELTAMIVIR (PHOSPHATE) SUSPENSION 6MG/ML",
-      "id": "1775821420575_14"
     },
     {
       "itemCode": "PHEN18",

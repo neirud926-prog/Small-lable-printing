@@ -10,8 +10,9 @@ export function todayYYMMDD() {
 }
 
 // Generate batch number: [PREFIX-]YYMMDD[0]N
-export function generateBatchNo(location, prefix, usePrefix) {
-  const counter = getCounter(location)
+// The [0]N sequence is counted per item code (per location, per day).
+export function generateBatchNo(location, prefix, usePrefix, itemCode) {
+  const counter = getCounter(location, itemCode)
   const dateStr = todayYYMMDD()
   const counterStr = counter < 10 ? `0${counter}` : String(counter)
   if (usePrefix && prefix) {
@@ -40,7 +41,7 @@ export function formatDateLabel(date) {
   }).toUpperCase()
 }
 
-// Commit the batch: increment counter after confirmed print
-export function commitBatchNo(location) {
-  incrementCounter(location)
+// Commit the batch: advance the item's counter past the printed batch number
+export function commitBatchNo(location, itemCode, batchNo) {
+  incrementCounter(location, itemCode, batchNo)
 }

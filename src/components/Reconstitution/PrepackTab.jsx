@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getPrepackList, getExpiryRules, getSettings, addBatchRecord } from '../../utils/storage'
+import { getPrepackList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildPrepackLabelHTML } from '../../utils/labelPrint'
 
@@ -9,6 +9,7 @@ const UNITS = ['MG', 'MCG', 'G', 'ML', 'IU', '%', 'MMOL']
 export default function PrepackTab() {
   const [drugCode, setDrugCode]       = useState('')
   const [description, setDescription] = useState('')
+  const [descFound, setDescFound]     = useState(true)
   const [strength, setStrength]       = useState('')
   const [unit, setUnit]               = useState('MG')
   const [batchNo, setBatchNo]         = useState('')
@@ -25,7 +26,9 @@ export default function PrepackTab() {
   useEffect(() => {
     if (!drugCode) { clearAll(); return }
     const item = prepackList.find(p => p.drugCode === drugCode)
-    if (item) setDescription(item.description || '')
+    const desc = getItemDescription(drugCode)
+    setDescription(desc.description)
+    setDescFound(desc.found)
     const rules = getExpiryRules()
     const rule = rules.find(r => r.itemCode === drugCode && r.status === 'Active')
     if (rule) {
@@ -33,7 +36,7 @@ export default function PrepackTab() {
       setExpiry(formatDateLabel(d))
     }
     const prefix = item ? item.prefix : ''
-    setBatchNo(generateBatchNo(storageKey, prefix, !!prefix))
+    setBatchNo(generateBatchNo(storageKey, prefix, !!prefix, drugCode))
   }, [drugCode])
 
   const finalDescription = description + (strength ? ` ${strength}${unit}` : '')
@@ -42,6 +45,7 @@ export default function PrepackTab() {
     if (!drugCode) { setError('Please select a drug code.'); return }
     const useExpiry = customExpiry || expiry
     if (!useExpiry) { setError('No expiry date — check expiry rules or enter one manually.'); return }
+    if (!descFound && !window.confirm(`${drugCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
 
     // Confirm use-before date
     const confirmMsg = `Use Before: ${useExpiry}\nIs this correct?`
@@ -68,14 +72,14 @@ export default function PrepackTab() {
       notes: `Prepack ${strength}${unit}`,
     })
 
-    commitBatchNo(storageKey)
+    commitBatchNo(storageKey, drugCode, batchNo)
     setSuccess(true)
     setTimeout(() => setSuccess(false), 2000)
     clearAll()
   }
 
   const clearAll = () => {
-    setDrugCode(''); setDescription(''); setStrength(''); setBatchNo(''); setExpiry('')
+    setDrugCode(''); setDescription(''); setDescFound(true); setStrength(''); setBatchNo(''); setExpiry('')
     setCustomExpiry(''); setShowOverride(false); setLabelCount(1); setError('')
   }
 
@@ -96,6 +100,7 @@ export default function PrepackTab() {
         <div className="form-group">
           <label className="form-label">Description</label>
           <input className="form-input" value={description} readOnly style={{ background: 'var(--bg)' }} />
+          {!descFound && <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 4 }}>⚠ Not in item list — showing item code</div>}
         </div>
         <div className="form-group">
           <label className="form-label">Strength</label>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   getDrugs, saveDrugs, getAbxList, saveAbxList,
   getPrepackList, savePrepackList, getExtempList, saveExtempList,
-  getExpAfterOpen, saveExpAfterOpen,
+  getExpAfterOpen, saveExpAfterOpen, getItemDescription,
 } from '../../utils/storage'
 
 const TYPES = ['Drug (PHQ)', 'ABX', 'Prepack', 'Extemp', 'Exp After Open']
@@ -11,9 +11,9 @@ const TYPES = ['Drug (PHQ)', 'ABX', 'Prepack', 'Extemp', 'Exp After Open']
 function buildEmpty(type) {
   switch (type) {
     case 'Drug (PHQ)':    return { itemCode: '', name: '', unit: '', isSpecial: false }
-    case 'ABX':           return { itemCode: '', prefix: '', packSize: '', description: '' }
-    case 'Prepack':       return { drugCode: '', prefix: '', description: '', unit: '' }
-    case 'Extemp':        return { itemCode: '', prefix: '', volume: '', description: '' }
+    case 'ABX':           return { itemCode: '', prefix: '', packSize: '' }
+    case 'Prepack':       return { drugCode: '', prefix: '', unit: '' }
+    case 'Extemp':        return { itemCode: '', prefix: '', volume: '' }
     case 'Exp After Open': return { itemCode: '', days: '' }
     default:              return {}
   }
@@ -44,15 +44,32 @@ function getCodeField(type) {
   return type === 'Prepack' ? 'drugCode' : 'itemCode'
 }
 
+// Descriptions always come from the item list (Drug (PHQ)); the ABX / Prepack /
+// Extemp / Exp After Open tables only hold the code and their own settings.
+function descriptionFor(type, item) {
+  if (type === 'Drug (PHQ)') return { text: item.name || '', found: true }
+  const d = getItemDescription(item[getCodeField(type)])
+  return { text: d.found ? d.description : '', found: d.found }
+}
+
+function DescriptionCell({ type, item }) {
+  const d = descriptionFor(type, item)
+  if (d.text) return d.text
+  if (!d.found && item[getCodeField(type)]) {
+    return <span style={{ color: 'var(--warning)' }}>⚠ Not in item list</span>
+  }
+  return '—'
+}
+
 function ItemForm({ type, initial, onSave, onCancel }) {
   const [form, setForm] = useState(initial)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const fields = {
     'Drug (PHQ)':    [['itemCode','Item Code'], ['name','Drug Name'], ['unit','Unit'], ['isSpecial','Is Special (AUGM06 style)', 'check']],
-    'ABX':           [['itemCode','Item Code'], ['description','Description'], ['prefix','Prefix'], ['packSize','Pack Size']],
-    'Prepack':       [['drugCode','Drug Code'], ['description','Description'], ['prefix','Prefix'], ['unit','Unit']],
-    'Extemp':        [['itemCode','Item Code'], ['description','Description'], ['prefix','Prefix'], ['volume','Volume']],
+    'ABX':           [['itemCode','Item Code'], ['prefix','Prefix'], ['packSize','Pack Size']],
+    'Prepack':       [['drugCode','Drug Code'], ['prefix','Prefix'], ['unit','Unit']],
+    'Extemp':        [['itemCode','Item Code'], ['prefix','Prefix'], ['volume','Volume']],
     'Exp After Open': [['itemCode','Item Code'], ['days','Days After Opening', 'number']],
   }[type] || []
 
@@ -97,7 +114,7 @@ export default function ProductManager() {
 
   const filtered = items.filter(i => {
     const code = (i[codeField] || '').toUpperCase()
-    const name = (i.name || i.description || '').toUpperCase()
+    const name = descriptionFor(type, i).text.toUpperCase()
     const q = search.toUpperCase()
     return code.includes(q) || name.includes(q)
   })
@@ -155,7 +172,7 @@ export default function ProductManager() {
                 {filtered.map(item => (
                   <tr key={item.id || item[codeField]}>
                     <td><code style={{ fontFamily: 'monospace', fontSize: 13 }}>{item[codeField]}</code></td>
-                    <td style={{ fontSize: 13 }}>{item.name || item.description || '—'}</td>
+                    <td style={{ fontSize: 13 }}><DescriptionCell type={type} item={item} /></td>
                     {type === 'ABX' && <td style={{ fontSize: 12 }}>{item.prefix}</td>}
                     {type === 'Drug (PHQ)' && <td style={{ fontSize: 12 }}>{item.unit}</td>}
                     {type === 'Exp After Open' && <td style={{ fontSize: 12 }}>{item.days} days</td>}

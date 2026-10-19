@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getEV54Drugs, saveEV54Drugs, getDataPaths } from '../../utils/storage'
+import { getEV54Drugs, saveEV54Drugs, getDataPaths, getItemDescription } from '../../utils/storage'
 import { loadEV54DrugsXls } from '../../utils/dataLoader'
 
 function isTauri() {
@@ -13,7 +13,11 @@ export default function EV54DrugsViewer() {
   const [status, setStatus]   = useState('')
 
   function loadFromStorage() {
-    const list = getEV54Drugs()
+    // Description comes from the item list, not the EV54 file's own name column.
+    const list = getEV54Drugs().map(r => {
+      const d = getItemDescription(r.itemCode)
+      return { ...r, desc: d.found ? d.description : '' }
+    })
     const sorted = list.slice().sort((a, b) =>
       (a.evLocator || '').localeCompare(b.evLocator || '', undefined, { numeric: true, sensitivity: 'base' })
     )
@@ -45,7 +49,7 @@ export default function EV54DrugsViewer() {
   const filtered = q
     ? rows.filter(r =>
         (r.itemCode  || '').toUpperCase().includes(q) ||
-        (r.name      || '').toUpperCase().includes(q) ||
+        (r.desc      || '').toUpperCase().includes(q) ||
         (r.evLocator || '').toUpperCase().includes(q))
     : rows
 
@@ -92,7 +96,9 @@ export default function EV54DrugsViewer() {
               {filtered.map((r, i) => (
                 <tr key={`${r.itemCode}-${i}`}>
                   <td><code style={{ fontFamily: 'monospace', fontWeight: 600 }}>{r.itemCode}</code></td>
-                  <td style={{ fontSize: 13 }}>{r.name || '—'}</td>
+                  <td style={{ fontSize: 13 }}>
+                    {r.desc || <span style={{ color: 'var(--warning)' }}>⚠ Not in item list</span>}
+                  </td>
                   <td>
                     {r.evLocator ? (
                       <span style={{ fontSize: 12, background: '#f3e8ff', color: '#6b21a8', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
