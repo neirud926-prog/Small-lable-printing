@@ -1,15 +1,60 @@
-import React from 'react'
+import React, { useMemo, useState } from 'react'
+import {
+  buildLabelDataMatrix, isLabelDataMatrixEnabled, symbolPrintDecision, TEXT_TOO_BIG_MESSAGE,
+} from '../../utils/labelDataMatrix'
+import { packVolumeDigitForRecord } from '../../utils/internalGtin'
 
-const TOO_BIG = 'The label text does not fit beside the 2D code at the current font sizes ' +
-  '(Settings → Label Layout), so the 2D code will be left off.'
+/**
+ * Internal GTIN 2D code for a Prepack / ABX / Extemp label (issue #32),
+ * shared by the three Reconstitution tabs.
+ *
+ *   symbol         buildLabelDataMatrix() result for the label as it will print,
+ *                  or null while there is no item / batch number / Use Before yet
+ *   previewSymbol  the symbol to show in <LabelPreview>, or null
+ *   fits           the preview's check that all label text fits beside the
+ *                  symbol: true / false, or null until the current preview has
+ *                  been measured
+ *   onFit          pass to <LabelPreview onFit>
+ *   prepare        call when printing → { ok, symbol, error? }: the symbol to
+ *                  print (null = print without it). Asks staff first when the
+ *                  code should be on the label but cannot be; ok: false means
+ *                  do not print.
+ */
+export function useLabelDataMatrix({ itemCode, record, expiryText, lot, settings, region = 'bottom' }) {
+  const [fits, setFits] = useState(null)
+  const enabled = isLabelDataMatrixEnabled(settings)
+  const widthMm = settings.labelWidth || 34.4
+  const heightMm = settings.labelHeight || 25
+  const packVolumeDigit = packVolumeDigitForRecord(record)
+
+  // Keyed on plain values: the settings object and the record are re-read
+  // from storage on every render.
+  const symbol = useMemo(() => {
+    if (!itemCode || !lot || !expiryText) return null
+    return buildLabelDataMatrix({
+      itemCode, record, expiryText, lot, region,
+      settings: { labelDataMatrix: enabled, labelWidth: widthMm, labelHeight: heightMm },
+    })
+  }, [itemCode, packVolumeDigit, expiryText, lot, region, enabled, widthMm, heightMm])
+
+  const prepare = () => {
+    const { action, message } = symbolPrintDecision(symbol, fits)
+    if (action === 'print') return { ok: true, symbol }
+    if (action === 'none') return { ok: true, symbol: null }
+    if (action === 'wait') return { ok: false, error: message }
+    if (!window.confirm(`${message}\n\nPrint the label without the 2D code?`)) return { ok: false }
+    return { ok: true, symbol: null }
+  }
+
+  return { symbol, previewSymbol: symbol && symbol.ok ? symbol : null, fits, onFit: setFits, prepare }
+}
 
 // One line under the label preview saying what the Internal GTIN 2D code on
-// this label carries — or why it is left off. `fits` is the preview's check
-// that all label text fits beside the code.
-export default function DataMatrixStatus({ symbol, fits = true }) {
+// this label carries — or why it is left off.
+export default function DataMatrixStatus({ symbol, fits }) {
   if (!symbol) return null
-  if (symbol.ok && !fits) {
-    return <div style={{ fontSize: 12, color: 'var(--warning)' }}>⚠ {TOO_BIG}</div>
+  if (symbol.ok && fits === false) {
+    return <div style={{ fontSize: 12, color: 'var(--warning)' }}>⚠ {TEXT_TOO_BIG_MESSAGE}</div>
   }
   if (symbol.ok) {
     return (
@@ -30,19 +75,4 @@ export default function DataMatrixStatus({ symbol, fits = true }) {
       ⚠ No 2D code on this label: {symbol.message}
     </div>
   )
-}
-
-// The symbol to print: the 2D code only when it is ready and the label text
-// fits beside it; otherwise none.
-export function symbolToPrint(symbol, fits = true) {
-  return symbol && symbol.ok && fits ? symbol : null
-}
-
-// Before printing: if the 2D code should be on the label but cannot be, say
-// why and let staff choose. Returns false when they cancel.
-export function confirmWithoutDataMatrix(symbol, fits = true) {
-  if (!symbol || symbol.reason === 'disabled') return true
-  if (symbol.ok && fits) return true
-  const why = symbol.ok ? TOO_BIG : symbol.message
-  return window.confirm(`${why}\n\nPrint the label without the 2D code?`)
 }

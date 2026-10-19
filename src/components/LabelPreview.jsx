@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useLayoutEffect, useMemo, useRef } from 'react'
 import {
   buildSmallLabelHTML,
   buildFullPageHTML,
@@ -56,6 +56,10 @@ export default function LabelPreview({
     return buildFullPageHTML(body, settings)
   }, [type, settings, drugName, code, batchNo, expiry, storage, warning, symbol])
 
+  // New label content → its fit is unknown until the iframe has loaded and
+  // been measured (layout effect: runs before the iframe can fire onLoad).
+  useLayoutEffect(() => { if (onFit) onFit(null) }, [srcDoc])
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && (
@@ -82,7 +86,9 @@ export default function LabelPreview({
             srcDoc={srcDoc}
             onLoad={() => {
               if (!onFit) return
-              try { onFit(labelTextFits(iframeRef.current.contentDocument)) } catch { onFit(true) }
+              // A failed measurement counts as "does not fit": never print the
+              // 2D code over text we could not check.
+              try { onFit(labelTextFits(iframeRef.current.contentDocument)) } catch { onFit(false) }
             }}
             style={{
               border: 'none',

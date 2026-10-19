@@ -1,16 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { formatExpiry, classifyScannedInput, resolveScannedGtin } from '../utils/barcodeDecoder'
-import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
+import { formatExpiry, classifyScannedInput } from '../utils/barcodeDecoder'
+import { findDrugByCode, getExpAfterOpenDays, getSettings } from '../utils/storage'
+import { resolveGtinScan } from '../utils/scanLookup'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
-// GTIN scan → item code: Internal GTIN (item list) first, then the GTIN map,
-// then the last six digits (never for an Internal GTIN-shaped code).
-const resolveGtinScan = (scan) =>
-  resolveScannedGtin(scan, { findByGtin, isItemCode: code => !!findDrugByCode(code) })
 
 // Convert user-typed expiry to DD-Mon-YYYY.
 // Accepts:  DDMMYYYY (8 digits)  →  "01-Jan-2028"

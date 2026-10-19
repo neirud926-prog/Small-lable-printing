@@ -290,9 +290,29 @@ $pd.add_PrintPage({
 
     # Internal GTIN DataMatrix (issue #32): rows of '0'/'1' from bwip-js, placed
     # in the lower half against the right edge. The lower-half text stays left
-    # of it — the value font steps down only if it would otherwise reach it.
+    # of it: the value font steps down (not below 5 pt) only if it would
+    # otherwise reach it, and if the text still cannot fit, the symbol is left
+    # off rather than drawn over text.
     $symRows = @($d.symbolRows)
     $hasSym  = ($symRows.Count -gt 0) -and (([string]$symRows[0]).Length -gt 0)
+    $botFont = $valueFont
+    if ($hasSym) {
+        $avail = [double]$d.symbolXMm - 0.4 - $padX
+        $fitPt = $valuePt
+        if ($expVal -ne '') {
+            while (($g.MeasureString($expVal, $botFont).Width -gt $avail) -and ($fitPt -gt 5)) {
+                $fitPt -= 0.5
+                $botFont = New-Object System.Drawing.Font([string]$d.fontFamily, $fitPt, $valueStyle)
+            }
+        }
+        $valueW = 0.0
+        if ($expVal -ne '') { $valueW = $g.MeasureString($expVal, $botFont).Width }
+        $symTop = [double]$d.symbolYMm
+        if (($valueW -gt $avail) -or ($g.MeasureString("Use Before:", $titleFont).Width -gt $avail) -or ($symTop -lt $halfH)) {
+            $hasSym  = $false
+            $botFont = $valueFont
+        }
+    }
     $botRight = $w - $padX
     if ($hasSym) { $botRight = [double]$d.symbolXMm - 0.4 }
 
@@ -300,14 +320,6 @@ $pd.add_PrintPage({
     $y1 = $halfH + $topPad
     $g.DrawString("Use Before:", $titleFont, $blk, $padX, $y1)
     if ($expVal -ne '') {
-        $botFont = $valueFont
-        if ($hasSym) {
-            $fitPt = $valuePt
-            while (($g.MeasureString($expVal, $botFont).Width -gt ($botRight - $padX)) -and ($fitPt -gt 5)) {
-                $fitPt -= 0.5
-                $botFont = New-Object System.Drawing.Font([string]$d.fontFamily, $fitPt, $valueStyle)
-            }
-        }
         $g.DrawString($expVal, $botFont, $blk, $padX, ($y1 + $titleH + 0.4))
     } else {
         $blankY = $y1 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)

@@ -3,9 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getExtempList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildExtempLabelHTML } from '../../utils/labelPrint'
-import { buildLabelDataMatrix } from '../../utils/labelDataMatrix'
 import LabelPreview from '../LabelPreview'
-import DataMatrixStatus, { confirmWithoutDataMatrix, symbolToPrint } from './DataMatrixStatus'
+import DataMatrixStatus, { useLabelDataMatrix } from './DataMatrixStatus'
 
 export default function ExtempTab() {
   const [itemCode, setItemCode]       = useState('')
@@ -18,22 +17,19 @@ export default function ExtempTab() {
   const [factor, setFactor]           = useState(1)
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState(false)
-  const [textFits, setTextFits]       = useState(true)   // label text fits beside the 2D code (preview check)
   const extempList = getExtempList()
   const settings = getSettings()
   const location = settings.location || 'EC'
 
   // Internal GTIN 2D code: item code, Pack Volume from the Extemp record's
   // Volume, and the Use Before / batch number exactly as printed.
-  const symbol = itemCode && batchNo && expiry
-    ? buildLabelDataMatrix({
-        itemCode,
-        record: extempList.find(e => e.itemCode === itemCode) || null,
-        expiryText: expiry,
-        lot: batchNo,
-        settings,
-      })
-    : null
+  const dm = useLabelDataMatrix({
+    itemCode,
+    record: extempList.find(e => e.itemCode === itemCode) || null,
+    expiryText: expiry,
+    lot: batchNo,
+    settings,
+  })
 
   useEffect(() => {
     if (!itemCode) { clearAll(); return }
@@ -43,12 +39,10 @@ export default function ExtempTab() {
     setDescFound(desc.found)
     const rules = getExpiryRules()
     const rule = rules.find(r => r.itemCode === itemCode && r.status === 'Active')
-    if (rule) {
-      const d = calcExpiryDate(rule.shelfLifeValue, rule.shelfLifeUnit)
-      setExpiry(formatDateLabel(d))
-      setStorage(rule.storage || '')
-      setWarning(rule.warning || '')
-    }
+    // Never carry the previous item's date / storage / warning over to this one.
+    setExpiry(rule ? formatDateLabel(calcExpiryDate(rule.shelfLifeValue, rule.shelfLifeUnit)) : '')
+    setStorage(rule ? rule.storage || '' : '')
+    setWarning(rule ? rule.warning || '' : '')
     const prefix = item ? item.prefix : ''
     const bn = generateBatchNo('EC', prefix, !!prefix, itemCode) + (getCounterSuffix())
     setBatchNo(bn)
@@ -60,10 +54,11 @@ export default function ExtempTab() {
     if (!itemCode) { setError('Please select an item code.'); return }
     if (!expiry)   { setError('No expiry rule found — add one in Maintenance.'); return }
     if (!descFound && !window.confirm(`${itemCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
-    if (!confirmWithoutDataMatrix(symbol, textFits)) return
+    const dmPrint = dm.prepare()
+    if (!dmPrint.ok) { if (dmPrint.error) setError(dmPrint.error); return }
 
     const copies = Math.ceil((parseInt(factor) + 2) / 2)
-    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings, symbolToPrint(symbol, textFits))
+    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings, dmPrint.symbol)
     printLabel(html, copies, settings)
 
     addBatchRecord({
@@ -130,12 +125,12 @@ export default function ExtempTab() {
             expiry={expiry}
             storage={storage}
             warning={warning}
-            symbol={symbolToPrint(symbol)}
+            symbol={dm.previewSymbol}
             scale={3}
             label="Label preview"
-            onFit={setTextFits}
+            onFit={dm.onFit}
           />
-          <DataMatrixStatus symbol={symbol} fits={textFits} />
+          <DataMatrixStatus symbol={dm.symbol} fits={dm.fits} />
         </div>
       )}
 

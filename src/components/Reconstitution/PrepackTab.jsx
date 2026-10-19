@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getPrepackList, getExpiryRules, getSettings, addBatchRecord, getItemDescription, findByGtin, findDrugByCode } from '../../utils/storage'
+import { getPrepackList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildPrepackLabelHTML } from '../../utils/labelPrint'
-import { classifyScannedInput, resolveScannedGtin } from '../../utils/barcodeDecoder'
-import { buildLabelDataMatrix } from '../../utils/labelDataMatrix'
+import { classifyScannedInput } from '../../utils/barcodeDecoder'
+import { resolveGtinScan } from '../../utils/scanLookup'
 import LabelPreview from '../LabelPreview'
-import DataMatrixStatus, { confirmWithoutDataMatrix, symbolToPrint } from './DataMatrixStatus'
+import DataMatrixStatus, { useLabelDataMatrix } from './DataMatrixStatus'
 
 const UNITS = ['MG', 'MCG', 'G', 'ML', 'IU', '%', 'MMOL']
 
@@ -24,36 +24,36 @@ export default function PrepackTab() {
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState(false)
   const [scan, setScan]               = useState('')
-  const [textFits, setTextFits]       = useState(true)   // label text fits beside the 2D code (preview check)
   const prepackList = getPrepackList()
   const settings = getSettings()
   const storageKey = settings.location === 'EC' ? 'EC' : 'IPOP'
-  const record = prepackList.find(p => p.drugCode === drugCode) || null
 
   // Internal GTIN 2D code for this label: drug code, Pack Volume from the
   // Prepack record, and the Use Before / batch number exactly as printed.
-  const symbolFor = (useExpiry) => buildLabelDataMatrix({
-    itemCode: drugCode, record, expiryText: useExpiry, lot: batchNo, settings,
+  const previewExpiry = customExpiry || expiry
+  const dm = useLabelDataMatrix({
+    itemCode: drugCode,
+    record: prepackList.find(p => p.drugCode === drugCode) || null,
+    expiryText: previewExpiry,
+    lot: batchNo,
+    settings,
   })
 
   // Scan (or type) a code to pick the drug: 6-char code, 13-char IP barcode,
   // manufacturer GTIN or Internal GTIN 2D code. It must be on the Prepack list.
   const handleScan = (raw) => {
+    setScan('')   // always clear, so the next scan never appends to this one
     if (!raw.trim()) return
     const c = classifyScannedInput(raw, settings.barcodeMethod || 'gs1')
     let code = ''
     if (c.kind === 'op-code' || c.kind === 'ip-code') code = c.itemCode
     else if (c.kind === 'gtin') {
-      code = resolveScannedGtin(c, {
-        findByGtin,
-        isItemCode: x => !!findDrugByCode(x) || prepackList.some(p => p.drugCode.toUpperCase() === x),
-      }).itemCode
+      code = resolveGtinScan(c, { alsoItemCode: x => prepackList.some(p => p.drugCode.toUpperCase() === x) }).itemCode
     }
     if (!code) { setError('Could not read an item code from that scan.'); return }
     const match = prepackList.find(p => p.drugCode.toUpperCase() === code.toUpperCase())
     if (!match) { setError(`${code} is not on the Prepack list.`); return }
     setError('')
-    setScan('')
     setDrugCode(match.drugCode)
   }
 
@@ -65,10 +65,10 @@ export default function PrepackTab() {
     setDescFound(desc.found)
     const rules = getExpiryRules()
     const rule = rules.find(r => r.itemCode === drugCode && r.status === 'Active')
-    if (rule) {
-      const d = calcExpiryDate(rule.shelfLifeValue, rule.shelfLifeUnit)
-      setExpiry(formatDateLabel(d))
-    }
+    // Never carry the previous drug's dates over to this one.
+    setExpiry(rule ? formatDateLabel(calcExpiryDate(rule.shelfLifeValue, rule.shelfLifeUnit)) : '')
+    setCustomExpiry('')
+    setShowOverride(false)
     const prefix = item ? item.prefix : ''
     setBatchNo(generateBatchNo(storageKey, prefix, !!prefix, drugCode))
   }, [drugCode])
@@ -92,9 +92,10 @@ export default function PrepackTab() {
   }
 
   const doPrint = (useExpiry) => {
-    const symbol = symbolFor(useExpiry)
-    if (!confirmWithoutDataMatrix(symbol, textFits)) return
-    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry, settings, symbolToPrint(symbol, textFits))
+    // The 2D code is built from the date shown in the preview — the same one.
+    const dmPrint = useExpiry === previewExpiry ? dm.prepare() : { ok: true, symbol: null }
+    if (!dmPrint.ok) { if (dmPrint.error) setError(dmPrint.error); return }
+    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry, settings, dmPrint.symbol)
     printLabel(html, parseInt(labelCount), settings)
 
     addBatchRecord({
@@ -118,9 +119,6 @@ export default function PrepackTab() {
     setDrugCode(''); setDescription(''); setDescFound(true); setStrength(''); setBatchNo(''); setExpiry('')
     setCustomExpiry(''); setShowOverride(false); setLabelCount(1); setError('')
   }
-
-  const previewExpiry = customExpiry || expiry
-  const previewSymbol = drugCode && batchNo && previewExpiry ? symbolFor(previewExpiry) : null
 
   return (
     <div className="card">
@@ -186,12 +184,12 @@ export default function PrepackTab() {
             description={finalDescription}
             batchNo={batchNo}
             expiry={previewExpiry}
-            symbol={symbolToPrint(previewSymbol)}
+            symbol={dm.previewSymbol}
             scale={3}
             label="Label preview"
-            onFit={setTextFits}
+            onFit={dm.onFit}
           />
-          <DataMatrixStatus symbol={previewSymbol} fits={textFits} />
+          <DataMatrixStatus symbol={dm.symbol} fits={dm.fits} />
         </div>
       )}
 

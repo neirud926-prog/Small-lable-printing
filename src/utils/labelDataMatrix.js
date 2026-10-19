@@ -127,6 +127,30 @@ export function dataMatrixHTML(symbol) {
   )
 }
 
+export const TEXT_TOO_BIG_MESSAGE = 'The label text does not fit beside the 2D code at the current font sizes ' +
+  '(Settings → Label Layout), so the 2D code will be left off.'
+
+/**
+ * What to do with the symbol when a label is printed.
+ *   symbol  buildLabelDataMatrix() result, or null (no item / date / batch yet)
+ *   fits    the preview's check that the label text fits beside the symbol:
+ *           true / false, or null while the current preview is unmeasured
+ * Returns { action, message }:
+ *   'print' — print with the symbol
+ *   'none'  — print without it, nothing to ask (no symbol, or turned off)
+ *   'wait'  — do not print yet: the preview has not been measured
+ *   'ask'   — the code should be on the label but cannot be; ask staff
+ *             (message says why) and print without it if they agree
+ */
+export function symbolPrintDecision(symbol, fits) {
+  if (!symbol || symbol.reason === 'disabled') return { action: 'none', message: '' }
+  if (!symbol.ok) return { action: 'ask', message: symbol.message }
+  if (fits === null || fits === undefined) {
+    return { action: 'wait', message: 'The label preview is still updating — press Confirm & Print again.' }
+  }
+  return fits ? { action: 'print', message: '' } : { action: 'ask', message: TEXT_TOO_BIG_MESSAGE }
+}
+
 /**
  * Everything a Prepack / ABX / Extemp label needs to carry the Internal GTIN
  * DataMatrix `(01)(17)(10)`.
@@ -165,5 +189,12 @@ export function buildLabelDataMatrix({ itemCode, record, expiryText, lot, settin
   const matrix = encodeDataMatrix(element)
   const widthMm = (settings && settings.labelWidth) || 34.4
   const heightMm = (settings && settings.labelHeight) || 25
-  return { ...element, matrix, placement: placeSymbol(matrix, { widthMm, heightMm, region }) }
+  const placement = placeSymbol(matrix, { widthMm, heightMm, region })
+  // The symbol must sit wholly on the label — and, on the 50/50
+  // reconstitution label, wholly in the white lower half.
+  const top = region === 'lower-half' ? heightMm / 2 : 0
+  if (placement.xMm < 0 || placement.yMm < top - 1e-6 || placement.yMm + placement.heightMm > heightMm + 1e-6) {
+    return { ok: false, reason: 'labelSize', message: `The ${widthMm} × ${heightMm} mm label is too small for the 2D code.` }
+  }
+  return { ...element, matrix, placement }
 }

@@ -97,13 +97,14 @@ export default function DrugEnquiry() {
   const calcWeeks = daysValid ? (daysNum / 7).toFixed(2) : ''
 
   const drugCodes = useMemo(() => new Set(drugs.map(d => d.itemCode.toUpperCase())), [drugs])
+  const barcodeMethod = getSettings().barcodeMethod || 'gs1'
 
   const filtered = useMemo(() => {
     const v = q.trim().toUpperCase()
     if (!v) return drugs.slice(0, 200)
     // A scanned Internal GTIN (ADR-0002) names its item directly — show just
     // that item. Anything else searches as before.
-    const scan = classifyScannedInput(q, getSettings().barcodeMethod || 'gs1')
+    const scan = classifyScannedInput(q, barcodeMethod)
     if (scan.kind === 'gtin') {
       const r = resolveScannedGtin(scan, { isItemCode: code => drugCodes.has(code), allowLastSix: false })
       if (r.source === 'internal-gtin') return drugs.filter(d => d.itemCode.toUpperCase() === r.itemCode)
@@ -113,7 +114,7 @@ export default function DrugEnquiry() {
       (d.name || '').toUpperCase().includes(v) ||
       (gtinMap[d.itemCode.toUpperCase()] || '').includes(v)
     ).slice(0, 200)
-  }, [q, drugs, gtinMap, drugCodes])
+  }, [q, drugs, gtinMap, drugCodes, barcodeMethod])
 
   return (
     <div>

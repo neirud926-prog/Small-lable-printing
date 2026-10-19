@@ -720,6 +720,8 @@ Every red message in RxStation has a meaning. If you see one of the messages bel
 | XXXXXX is not on the Prepack list. | Prepack *Scan or Type Code* — the scanned or typed drug is not set up for prepacking. | Pick from the drop-down, or add it in *Maintenance → Products → Prepack*. |
 | No 2D code on this label: … | Reconstitution tabs — the 2D code cannot carry what the label says. | See *What is the 2D code?* in Chapter 5. |
 | The label text does not fit beside the 2D code at the current font sizes … | Reconstitution tabs — with these font sizes the 2D code would push text off the label. | Print without the code, or reduce the font sizes in *Settings → Label Layout*. |
+| The label preview is still updating — press Confirm & Print again. | You clicked *Confirm & Print* a split second after changing the item or date, before the preview had been checked. | Click *Confirm & Print* again. |
+| The … mm label is too small for the 2D code. | The label size in *Settings → Label Layout* has no room for the 2D code. | Check the label width / height, or turn the 2D code off. |
 | Item code must be 6 characters | EV54 pick-list — your code is the wrong length. | Item codes are exactly 6 characters. Chapter 6a. |
 | Item code "XXXXXX" not found in PHQ data | EV54 — the code is not in the drug list. | Import the latest drug list. Chapter 7d. |
 | XXXXXX is not on the EV54 drug list | EV54 pick-list is restricted to the EV54 allowlist. | *Maintenance → EV54 Drugs* — add the item, or turn off the restriction in *Maintenance → EV54 Allowlist*. Chapter 7. |

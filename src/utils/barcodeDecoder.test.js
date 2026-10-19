@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   classifyScannedInput,
   decodeBarcode,
-  itemCodeFromDecodedGtin,
   parseInternalGtinScan,
   resolveScannedGtin,
 } from './barcodeDecoder'
@@ -62,7 +61,7 @@ describe('Internal GTIN fast path (issue #31 acceptance)', () => {
     expect(scan('00425873440011')).toMatchObject({ itemCode: '' })
     expect(scan('00499999999993')).toMatchObject({ itemCode: '' })
     expect(scan('90425873440018')).toMatchObject({ itemCode: '' })
-    expect(itemCodeFromDecodedGtin(['00425873440011', 'na----', 'na----'], deps.findByGtin)).toBe('')
+    expect(resolveScannedGtin(['00425873440011', 'na----', 'na----'], { findByGtin: deps.findByGtin }).itemCode).toBe('')
   })
 })
 
@@ -117,7 +116,7 @@ describe('manufacturer GTINs behave exactly as before', () => {
   it('unknown manufacturer GTIN → last six digits, as before', () => {
     expect(scan('05012345678900')).toMatchObject({ itemCode: '678900', source: 'last-six' })
     expect(scan('0105012345678900' + '17271231' + '10ABC123')).toMatchObject({ itemCode: '678900', source: 'last-six', lot: 'ABC123', exp: '271231' })
-    expect(itemCodeFromDecodedGtin(['05012345678900', 'na----', 'na----'], deps.findByGtin)).toBe('678900')
+    expect(resolveScannedGtin(['05012345678900', 'na----', 'na----'], { findByGtin: deps.findByGtin }).itemCode).toBe('678900')
   })
 
   it('item codes and IP barcodes are untouched', () => {

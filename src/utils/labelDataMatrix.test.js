@@ -16,6 +16,7 @@ import {
   encodeDataMatrix,
   placeSymbol,
   symbolBoxMm,
+  symbolPrintDecision,
 } from './labelDataMatrix'
 
 const SETTINGS = { labelWidth: 34.4, labelHeight: 25 }
@@ -184,6 +185,33 @@ describe('buildLabelDataMatrix', () => {
     expect(buildLabelDataMatrix({ ...base, expiryText: '' })).toMatchObject({ ok: false, reason: 'expiry' })
     expect(buildLabelDataMatrix({ ...base, lot: 'pp-26101901' })).toMatchObject({ ok: false, reason: 'lot' })
     expect(buildLabelDataMatrix({ ...base, lot: '' })).toMatchObject({ ok: false, reason: 'lot' })
+  })
+
+  it('leaves the symbol off a label too small for it (never into the black top half)', () => {
+    const base = { itemCode: 'AUGM06', expiryText: '31 DEC 2027', lot: 'A457-26101902' }
+    expect(buildLabelDataMatrix({ ...base, settings: { labelWidth: 34.4, labelHeight: 12 }, region: 'lower-half' }))
+      .toMatchObject({ ok: false, reason: 'labelSize' })
+    expect(buildLabelDataMatrix({ ...base, settings: { labelWidth: 8, labelHeight: 25 } }))
+      .toMatchObject({ ok: false, reason: 'labelSize' })
+    expect(buildLabelDataMatrix({ ...base, settings: { labelWidth: 34.4, labelHeight: 18 }, region: 'lower-half' }).ok).toBe(true)
+  })
+})
+
+describe('symbolPrintDecision — what printing does with the symbol', () => {
+  const ok = { ok: true }
+  it('prints the symbol only when it is ready and the measured text fits', () => {
+    expect(symbolPrintDecision(ok, true).action).toBe('print')
+    expect(symbolPrintDecision(ok, false)).toMatchObject({ action: 'ask', message: expect.stringMatching(/does not fit/) })
+    expect(symbolPrintDecision(ok, null).action).toBe('wait') // preview not measured yet: never guess
+  })
+
+  it('prints without it, silently, when there is none or it is turned off', () => {
+    expect(symbolPrintDecision(null, true).action).toBe('none')
+    expect(symbolPrintDecision({ ok: false, reason: 'disabled', message: 'off' }, null).action).toBe('none')
+  })
+
+  it('asks, with the reason, when the code should be on the label but cannot be', () => {
+    expect(symbolPrintDecision({ ok: false, reason: 'expiry', message: 'bad date' }, true)).toEqual({ action: 'ask', message: 'bad date' })
   })
 })
 

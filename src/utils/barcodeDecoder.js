@@ -580,9 +580,3 @@ export function resolveScannedGtin(scan, { findByGtin, isItemCode, allowLastSix 
   return { ...none, gtin: norm }
 }
 
-// Resolve a GTIN-decoded payload → item code. Kept for callers that only need
-// the code; see resolveScannedGtin() for the rules (Internal GTIN fast path,
-// then GTIN map, then last six digits — never for a GTIN with 04 in digits 2–3).
-export function itemCodeFromDecodedGtin(decoded, findByGtin, isItemCode) {
-  return resolveScannedGtin(decoded, { findByGtin, isItemCode }).itemCode
-}
