@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { formatExpiry, classifyScannedInput, itemCodeFromDecodedGtin } from '../utils/barcodeDecoder'
+import { formatExpiry, classifyScannedInput, resolveScannedGtin } from '../utils/barcodeDecoder'
 import { findDrugByCode, getExpAfterOpenDays, getSettings, findByGtin } from '../utils/storage'
 import { printLabel, buildSmallLabelHTML } from '../utils/labelPrint'
 import { todayYYMMDD, formatDateLabel } from '../utils/batchNumber'
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+// GTIN scan → item code: Internal GTIN (item list) first, then the GTIN map,
+// then the last six digits (never for an Internal GTIN-shaped code).
+const resolveGtinScan = (scan) =>
+  resolveScannedGtin(scan, { findByGtin, isItemCode: code => !!findDrugByCode(code) })
 
 // Convert user-typed expiry to DD-Mon-YYYY.
 // Accepts:  DDMMYYYY (8 digits)  →  "01-Jan-2028"
@@ -180,9 +185,14 @@ export default function SmallLabelPrint({ navigate }) {
   const handleIPOPSelect = (type) => {
     setShowIPOP(false)
     if (!pendingBarcode) return
-    const { decoded } = pendingBarcode
-    const [, lotVal, expRaw] = decoded
-    const code = itemCodeFromDecodedGtin(decoded, findByGtin)
+    // Lot / expiry come from the resolver: for an Internal GTIN label they are
+    // read strictly (Lot = everything after AI 10).
+    const { itemCode: code, gtin, lot: lotVal, exp: expRaw } = resolveGtinScan(pendingBarcode)
+    if (!code) {
+      setError(`GTIN ${gtin} is not in the GTIN map or the item list.`)
+      setPendingBarcode(null)
+      return
+    }
     // IP label: include expiry date from barcode.
     // OP label: lot/batch only — no expiry on label.
     const expFormatted = type === 'IP' && expRaw && expRaw !== 'na----' ? formatExpiry(expRaw) : ''
@@ -211,7 +221,7 @@ export default function SmallLabelPrint({ navigate }) {
     switch (c.kind) {
       case 'op-code':
       case 'ip-code': code = c.itemCode; break
-      case 'gtin':    code = itemCodeFromDecodedGtin(c.decoded, findByGtin); break
+      case 'gtin':    code = resolveGtinScan(c).itemCode; break
       default: setError('Unrecognised input. Enter a 6-char item code or scan a barcode.'); return
     }
     if (!code) { setError('Could not resolve item code from scan.'); return }
