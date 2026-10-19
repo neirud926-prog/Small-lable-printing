@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getPrepackList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
+import { getPrepackList, getExpiryRules, getSettings, addBatchRecord, getItemDescription, findByGtin, findDrugByCode } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildPrepackLabelHTML } from '../../utils/labelPrint'
+import { classifyScannedInput, resolveScannedGtin } from '../../utils/barcodeDecoder'
+import { buildLabelDataMatrix } from '../../utils/labelDataMatrix'
+import LabelPreview from '../LabelPreview'
+import DataMatrixStatus, { confirmWithoutDataMatrix, symbolToPrint } from './DataMatrixStatus'
 
 const UNITS = ['MG', 'MCG', 'G', 'ML', 'IU', '%', 'MMOL']
 
@@ -19,9 +23,39 @@ export default function PrepackTab() {
   const [labelCount, setLabelCount]   = useState(1)
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState(false)
+  const [scan, setScan]               = useState('')
+  const [textFits, setTextFits]       = useState(true)   // label text fits beside the 2D code (preview check)
   const prepackList = getPrepackList()
   const settings = getSettings()
   const storageKey = settings.location === 'EC' ? 'EC' : 'IPOP'
+  const record = prepackList.find(p => p.drugCode === drugCode) || null
+
+  // Internal GTIN 2D code for this label: drug code, Pack Volume from the
+  // Prepack record, and the Use Before / batch number exactly as printed.
+  const symbolFor = (useExpiry) => buildLabelDataMatrix({
+    itemCode: drugCode, record, expiryText: useExpiry, lot: batchNo, settings,
+  })
+
+  // Scan (or type) a code to pick the drug: 6-char code, 13-char IP barcode,
+  // manufacturer GTIN or Internal GTIN 2D code. It must be on the Prepack list.
+  const handleScan = (raw) => {
+    if (!raw.trim()) return
+    const c = classifyScannedInput(raw, settings.barcodeMethod || 'gs1')
+    let code = ''
+    if (c.kind === 'op-code' || c.kind === 'ip-code') code = c.itemCode
+    else if (c.kind === 'gtin') {
+      code = resolveScannedGtin(c, {
+        findByGtin,
+        isItemCode: x => !!findDrugByCode(x) || prepackList.some(p => p.drugCode.toUpperCase() === x),
+      }).itemCode
+    }
+    if (!code) { setError('Could not read an item code from that scan.'); return }
+    const match = prepackList.find(p => p.drugCode.toUpperCase() === code.toUpperCase())
+    if (!match) { setError(`${code} is not on the Prepack list.`); return }
+    setError('')
+    setScan('')
+    setDrugCode(match.drugCode)
+  }
 
   useEffect(() => {
     if (!drugCode) { clearAll(); return }
@@ -58,7 +92,9 @@ export default function PrepackTab() {
   }
 
   const doPrint = (useExpiry) => {
-    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry, settings)
+    const symbol = symbolFor(useExpiry)
+    if (!confirmWithoutDataMatrix(symbol, textFits)) return
+    const html = buildPrepackLabelHTML(finalDescription, batchNo, useExpiry, settings, symbolToPrint(symbol, textFits))
     printLabel(html, parseInt(labelCount), settings)
 
     addBatchRecord({
@@ -83,9 +119,28 @@ export default function PrepackTab() {
     setCustomExpiry(''); setShowOverride(false); setLabelCount(1); setError('')
   }
 
+  const previewExpiry = customExpiry || expiry
+  const previewSymbol = drugCode && batchNo && previewExpiry ? symbolFor(previewExpiry) : null
+
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: '#fbbc05' }}>Pre-packed Drug Label</div>
+
+      <div className="form-group">
+        <label className="form-label">Scan or Type Code</label>
+        <input
+          className="form-input"
+          style={{ fontFamily: 'monospace' }}
+          placeholder="Scan a barcode or 2D code, or type the drug code — then press Enter"
+          value={scan}
+          onChange={e => setScan(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Tab') { e.preventDefault(); return }
+            if (e.key === 'Enter') handleScan(scan)
+          }}
+          autoComplete="off"
+        />
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div className="form-group">
@@ -122,6 +177,23 @@ export default function PrepackTab() {
         <div>Batch No: <strong style={{ fontFamily: 'monospace' }}>{batchNo || '—'}</strong></div>
         <div>Use Before: <strong style={{ color: (customExpiry || expiry) ? 'var(--success)' : 'var(--danger)' }}>{customExpiry || expiry || '—'}</strong></div>
       </div>
+
+      {drugCode && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          <LabelPreview
+            settings={settings}
+            type="prepack"
+            description={finalDescription}
+            batchNo={batchNo}
+            expiry={previewExpiry}
+            symbol={symbolToPrint(previewSymbol)}
+            scale={3}
+            label="Label preview"
+            onFit={setTextFits}
+          />
+          <DataMatrixStatus symbol={previewSymbol} fits={textFits} />
+        </div>
+      )}
 
       {showOverride && (
         <div className="form-group">

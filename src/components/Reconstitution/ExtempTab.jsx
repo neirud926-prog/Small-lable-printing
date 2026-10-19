@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { getExtempList, getExpiryRules, getSettings, addBatchRecord, getItemDescription } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printLabel, buildExtempLabelHTML } from '../../utils/labelPrint'
+import { buildLabelDataMatrix } from '../../utils/labelDataMatrix'
+import LabelPreview from '../LabelPreview'
+import DataMatrixStatus, { confirmWithoutDataMatrix, symbolToPrint } from './DataMatrixStatus'
 
 export default function ExtempTab() {
   const [itemCode, setItemCode]       = useState('')
@@ -15,9 +18,22 @@ export default function ExtempTab() {
   const [factor, setFactor]           = useState(1)
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState(false)
+  const [textFits, setTextFits]       = useState(true)   // label text fits beside the 2D code (preview check)
   const extempList = getExtempList()
   const settings = getSettings()
   const location = settings.location || 'EC'
+
+  // Internal GTIN 2D code: item code, Pack Volume from the Extemp record's
+  // Volume, and the Use Before / batch number exactly as printed.
+  const symbol = itemCode && batchNo && expiry
+    ? buildLabelDataMatrix({
+        itemCode,
+        record: extempList.find(e => e.itemCode === itemCode) || null,
+        expiryText: expiry,
+        lot: batchNo,
+        settings,
+      })
+    : null
 
   useEffect(() => {
     if (!itemCode) { clearAll(); return }
@@ -44,9 +60,10 @@ export default function ExtempTab() {
     if (!itemCode) { setError('Please select an item code.'); return }
     if (!expiry)   { setError('No expiry rule found — add one in Maintenance.'); return }
     if (!descFound && !window.confirm(`${itemCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
+    if (!confirmWithoutDataMatrix(symbol, textFits)) return
 
     const copies = Math.ceil((parseInt(factor) + 2) / 2)
-    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings)
+    const html = buildExtempLabelHTML(description, batchNo, expiry, storage, warning, '', settings, symbolToPrint(symbol, textFits))
     printLabel(html, copies, settings)
 
     addBatchRecord({
@@ -102,6 +119,25 @@ export default function ExtempTab() {
         {storage && <div style={{ color: 'var(--text-muted)' }}>Storage: {storage}</div>}
         {warning && <div style={{ color: 'var(--warning)' }}>⚠ {warning}</div>}
       </div>
+
+      {itemCode && expiry && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          <LabelPreview
+            settings={settings}
+            type="extemp"
+            description={description}
+            batchNo={batchNo}
+            expiry={expiry}
+            storage={storage}
+            warning={warning}
+            symbol={symbolToPrint(symbol)}
+            scale={3}
+            label="Label preview"
+            onFit={setTextFits}
+          />
+          <DataMatrixStatus symbol={symbol} fits={textFits} />
+        </div>
+      )}
 
       <AnimatePresence>
         {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

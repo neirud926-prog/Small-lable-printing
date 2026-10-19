@@ -288,14 +288,61 @@ $pd.add_PrintPage({
         $g.DrawLine($topPen, $padX, $blankY, ($w - $padX), $blankY)
     }
 
+    # Internal GTIN DataMatrix (issue #32): rows of '0'/'1' from bwip-js, placed
+    # in the lower half against the right edge. The lower-half text stays left
+    # of it — the value font steps down only if it would otherwise reach it.
+    $symRows = @($d.symbolRows)
+    $hasSym  = ($symRows.Count -gt 0) -and (([string]$symRows[0]).Length -gt 0)
+    $botRight = $w - $padX
+    if ($hasSym) { $botRight = [double]$d.symbolXMm - 0.4 }
+
     # Lower half: Use Before (always white background, black text)
     $y1 = $halfH + $topPad
     $g.DrawString("Use Before:", $titleFont, $blk, $padX, $y1)
     if ($expVal -ne '') {
-        $g.DrawString($expVal, $valueFont, $blk, $padX, ($y1 + $titleH + 0.4))
+        $botFont = $valueFont
+        if ($hasSym) {
+            $fitPt = $valuePt
+            while (($g.MeasureString($expVal, $botFont).Width -gt ($botRight - $padX)) -and ($fitPt -gt 5)) {
+                $fitPt -= 0.5
+                $botFont = New-Object System.Drawing.Font([string]$d.fontFamily, $fitPt, $valueStyle)
+            }
+        }
+        $g.DrawString($expVal, $botFont, $blk, $padX, ($y1 + $titleH + 0.4))
     } else {
         $blankY = $y1 + $titleH + 0.4 + ($valuePt * 0.353 * 0.85)
-        $g.DrawLine($botPen, $padX, $blankY, ($w - $padX), $blankY)
+        $g.DrawLine($botPen, $padX, $blankY, $botRight, $blankY)
+    }
+
+    if ($hasSym) {
+        # Every module is a whole number of printer dots (3 at 203 dpi), and the
+        # symbol starts on a dot boundary, so all modules print the same size.
+        $dpi = [double]$g.DpiX
+        if ($dpi -lt 100) { $dpi = 203.0 }
+        $mmPerDot = 25.4 / $dpi
+        $dpm   = [int][Math]::Max(1, [Math]::Round([double]$d.symbolModuleMm / $mmPerDot))
+        $q     = [int]$d.symbolQuietModules
+        $cols  = ([string]$symRows[0]).Length
+        $nRows = $symRows.Count
+        $x0    = [int][Math]::Round([double]$d.symbolXMm / $mmPerDot)
+        $y0    = [int][Math]::Round([double]$d.symbolYMm / $mmPerDot)
+        $g.SmoothingMode   = [System.Drawing.Drawing2D.SmoothingMode]::None
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+        # White quiet zone first, then each dark module.
+        $boxW  = [single](($cols + 2 * $q) * $dpm * $mmPerDot)
+        $boxH  = [single](($nRows + 2 * $q) * $dpm * $mmPerDot)
+        $g.FillRectangle($wht, [single]($x0 * $mmPerDot), [single]($y0 * $mmPerDot), $boxW, $boxH)
+        $modMm = [single]($dpm * $mmPerDot)
+        for ($r = 0; $r -lt $nRows; $r++) {
+            $line = [string]$symRows[$r]
+            $my   = [single](($y0 + ($r + $q) * $dpm) * $mmPerDot)
+            for ($c = 0; $c -lt $cols; $c++) {
+                if ($line[$c] -eq [char]'1') {
+                    $mx = [single](($x0 + ($c + $q) * $dpm) * $mmPerDot)
+                    $g.FillRectangle($blk, $mx, $my, $modMm, $modMm)
+                }
+            }
+        }
     }
 
     $e.HasMorePages = $false
@@ -307,7 +354,8 @@ Write-Host "OK: reconstitution label sent to $($script:d.printerName)"
     template.replace("DATA_FILE", data_file)
 }
 
-/// Native silent print for the Drug Reconstitution label (50/50 split layout).
+/// Native silent print for the Drug Reconstitution label (50/50 split layout),
+/// optionally with the Internal GTIN DataMatrix in the lower half.
 #[command]
 fn print_reconstitution_label_powershell(
     batch_no: String,
@@ -321,10 +369,21 @@ fn print_reconstitution_label_powershell(
     value_font_bold: bool,
     font_family: String,
     top_black_bg: Option<bool>,
+    symbol_rows: Option<Vec<String>>,
+    symbol_x_mm: Option<f64>,
+    symbol_y_mm: Option<f64>,
+    symbol_module_mm: Option<f64>,
+    symbol_quiet_modules: Option<u32>,
 ) -> Result<(), String> {
     let _lock = PRINT_LOCK
         .lock()
         .map_err(|_| "Print queue error: lock poisoned".to_string())?;
+
+    // Internal GTIN DataMatrix (optional): only drawn when every part is present.
+    let symbol_rows = match (&symbol_rows, symbol_x_mm, symbol_y_mm, symbol_module_mm) {
+        (Some(rows), Some(_), Some(_), Some(_)) if !rows.is_empty() => rows.clone(),
+        _ => Vec::new(),
+    };
 
     let data = serde_json::json!({
         "batchNo":        batch_no,
@@ -338,6 +397,11 @@ fn print_reconstitution_label_powershell(
         "valueFontBold":  value_font_bold,
         "fontFamily":     font_family,
         "topBlackBg":     top_black_bg.unwrap_or(false),
+        "symbolRows":         symbol_rows,
+        "symbolXMm":          symbol_x_mm.unwrap_or(0.0),
+        "symbolYMm":          symbol_y_mm.unwrap_or(0.0),
+        "symbolModuleMm":     symbol_module_mm.unwrap_or(0.0),
+        "symbolQuietModules": symbol_quiet_modules.unwrap_or(1),
     });
 
     let temp_dir = std::env::temp_dir();

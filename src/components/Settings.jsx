@@ -9,6 +9,8 @@ import { isConnected as isTauriConnected, getFilePath as getTauriPath,
 import { autoLoad, refreshSource } from '../utils/dataLoader'
 import Icon from './Icon'
 import LabelPreview from './LabelPreview'
+import { buildLabelDataMatrix, isLabelDataMatrixEnabled } from '../utils/labelDataMatrix'
+import { expiryTextToYymmdd, isPrintableLot } from '../utils/internalGtinLabel'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
@@ -480,6 +482,18 @@ export default function Settings({ navigate }) {
               itemCode={previewCode}
               batchNo={previewBatch}
               expiry={previewExpiry}
+              symbol={previewType === 'recon' ? (() => {
+                // Sample 2D code so the layout shows where it prints; the
+                // preview's own batch / date are used when they are encodable.
+                const s = buildLabelDataMatrix({
+                  itemCode: previewCode.trim().length === 6 ? previewCode.trim() : 'PARA01',
+                  expiryText: expiryTextToYymmdd(previewExpiry) ? previewExpiry : '31 DEC 2027',
+                  lot: isPrintableLot(previewBatch) ? previewBatch : 'ABC-12345678',
+                  settings,
+                  region: 'lower-half',
+                })
+                return s.ok ? s : null
+              })() : null}
             />
           </div>
 
@@ -616,6 +630,21 @@ export default function Settings({ navigate }) {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Internal GTIN 2D code (issue #32) */}
+          <div className="card">
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>▦ 2D Code on Prepack / Reconstitution / Extemp Labels</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isLabelDataMatrixEnabled(settings)}
+                onChange={e => set('labelDataMatrix', e.target.checked)} />
+              <span>Print the Internal GTIN 2D code (GS1 DataMatrix)</span>
+            </label>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+              Default: on. A small square code in the bottom-right corner (lower half on the Drug Reconstitution
+              label) carrying the item code, Use Before date and batch number, so BCS and RxStation can scan the
+              bottle. About 8–9 mm square, 3 printer dots per module for the GX420t.
+            </div>
           </div>
 
           {/* GTIN QR Label */}

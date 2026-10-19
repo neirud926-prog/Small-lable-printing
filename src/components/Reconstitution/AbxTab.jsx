@@ -4,6 +4,9 @@ import { getAbxList, getActiveManufacturers, getExpiryRule, getSettings, getItem
 import { addBatchRecord } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printReconstitutionLabel, printLabel, buildSmallLabelHTML } from '../../utils/labelPrint'
+import { buildLabelDataMatrix } from '../../utils/labelDataMatrix'
+import LabelPreview from '../LabelPreview'
+import DataMatrixStatus, { confirmWithoutDataMatrix, symbolToPrint } from './DataMatrixStatus'
 
 export default function AbxTab() {
   const [itemCode, setItemCode]       = useState('')
@@ -17,10 +20,25 @@ export default function AbxTab() {
   const [ipopToggle, setIpopToggle]   = useState('IP')
   const [error, setError]             = useState('')
   const [success, setSuccess]         = useState(false)
+  const [textFits, setTextFits]       = useState(true)   // label text fits beside the 2D code (preview check)
   const abxList = getAbxList()
   const settings = getSettings()
   const location = settings.location || 'IP/OP'
   const storageKey = location === 'EC' ? 'EC' : 'IPOP'
+
+  // Internal GTIN 2D code for the reconstitution label (lower half): item
+  // code, Pack Volume from the ABX record's Pack Size, and the Use Before /
+  // batch number exactly as printed.
+  const symbol = itemCode && batchNo && expiry
+    ? buildLabelDataMatrix({
+        itemCode,
+        record: abxList.find(a => a.itemCode === itemCode) || null,
+        expiryText: expiry,
+        lot: batchNo,
+        settings,
+        region: 'lower-half',
+      })
+    : null
 
   useEffect(() => {
     if (!itemCode) { setDescription(''); setDescFound(true); setManufacturers([]); setManufacturer(''); setBatchNo(''); setExpiry(''); return }
@@ -56,11 +74,13 @@ export default function AbxTab() {
     if (!manufacturer) { setError('Please select a manufacturer.'); return }
     if (!expiry) { setError('Could not calculate expiry — check expiry rules in Maintenance.'); return }
     if (!descFound && !window.confirm(`${itemCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
+    if (!confirmWithoutDataMatrix(symbol, textFits)) return
 
-    // Print Drug Reconstitution label — 50/50 split (Batch No / Use Before)
+    // Print Drug Reconstitution label — 50/50 split (Batch No / Use Before),
+    // with the Internal GTIN 2D code in the lower half.
     // One per vial/pack + 1 spare for the batch sheet
     const totalLabels = parseInt(factor) + 1
-    printReconstitutionLabel(batchNo, expiry, totalLabels, settings, itemCode)
+    printReconstitutionLabel(batchNo, expiry, totalLabels, settings, itemCode, symbolToPrint(symbol, textFits))
 
     // Plus 1 standard small label (4-row layout with Packed/Checked sign blanks)
     // for the batch record sheet. Honours the IP/OP toggle:
@@ -131,6 +151,23 @@ export default function AbxTab() {
           Use Before: <strong style={{ color: expiry ? 'var(--success)' : 'var(--danger)' }}>{expiry || '—'}</strong>
         </div>
       </div>
+
+      {itemCode && expiry && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+          <LabelPreview
+            settings={settings}
+            type="recon"
+            itemCode={itemCode}
+            batchNo={batchNo}
+            expiry={expiry}
+            symbol={symbolToPrint(symbol)}
+            scale={3}
+            label="Reconstitution label preview"
+            onFit={setTextFits}
+          />
+          <DataMatrixStatus symbol={symbol} fits={textFits} />
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
         <span style={{ fontSize: 13, fontWeight: 600 }}>Label type:</span>
