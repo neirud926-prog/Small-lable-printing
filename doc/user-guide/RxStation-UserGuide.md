@@ -69,6 +69,7 @@ The box is labelled *Search drug name, item code, or GTIN…*. The table below t
 - **Part of a drug name** — for example `parac` finds PARACETAMOL.
 - **Part of an item code** — for example `PARA` or `PARA05`.
 - **Part of a GTIN** — for example the last 6 digits of the barcode number.
+- **Scan a square 2D code from one of our own labels** — the *Internal GTIN* code that RxStation prints on Prepack / Drug Reconstitution / Extemp labels (and that the Tiny 2D-code app prints). The table then shows just that drug. See *What is the 2D code?* in Chapter 5.
 
 Upper or lower case does not matter.
 
@@ -114,6 +115,7 @@ The box is labelled *Scan Barcode / Enter Item Code*. You can use it three diffe
 
 - **Scan a GTIN barcode on the drug box.** Point the scanner at the barcode. The app reads the item code, the batch number, and the expiry date in one go, and a small window pops up asking *In-Patient (IP)* or *Out-Patient (OP)*. Pick one and the label prints.
 - **Scan a 13-digit IP barcode.** Same — just scan. The app pulls out the item code for you.
+- **Scan the square 2D code on one of our own labels** (Prepack / Drug Reconstitution / Extemp, or a Tiny 2D-code app label). It works like a GTIN barcode: the IP/OP window pops up, and the item code, batch number and expiry are filled in exactly as printed on that label. See *Scanning one of our own 2D codes* below.
 - **Type a 6-letter item code.** For example `PARA05`. After you type, press **Enter** on the keyboard. The label will print as an **OP** label (no expiry date).
 
 If you do not know the code, open **Drug Enquiry** (Chapter 3) in another window to look it up first.
@@ -162,6 +164,14 @@ After you click one of the two buttons:
 
 - If the barcode had both a batch and an expiry, the label prints straight away and the screen clears for the next scan.
 - If the barcode was missing the expiry (or you picked IP and the app could not read the expiry), the drug details stay on screen with an empty *Expiry date on label* box — type the date yourself (see *"Typing an expiry date by hand"* above) and click **🖨 Print Label**.
+
+#### Scanning one of our own 2D codes
+
+The square 2D codes printed by RxStation (Chapter 5) and by the Tiny 2D-code app carry an **Internal GTIN** — a 14-digit number starting `X04…` that is worked out from the item code. RxStation turns it straight back into the item code, so it does **not** need to be in the GTIN map. The batch number is read exactly as printed, even ones like `21113HK1`, `(B)A52921725A4` or `MIPL/A4/UII/91`.
+
+- If the item code inside the 2D code is not in the item list, the app tries the GTIN map instead.
+- If neither knows it, you see **"GTIN … is not in the GTIN map or the item list."** — nothing is printed. (Older versions guessed an item code from the last six digits; for these codes that guess was always wrong, so the app no longer does it.)
+- Barcodes from drug companies work exactly as before.
 
 #### What is printed on the sticker
 
@@ -222,7 +232,26 @@ After printing, the *✓ Label printed* tick flashes for a moment and the input 
 | **Extemporaneous** | Making a liquid preparation in-house (e.g. oral syrup). |
 | **Prepack** | Breaking a bulk bottle down into smaller packs (e.g. 30 tablets per bottle). |
 
-All three tabs work the same way: pick an item code, check the numbers the app filled in, and click **🖨 Confirm & Print**. The batch number and expiry are worked out for you.
+All three tabs work the same way: pick an item code, check the numbers the app filled in, and click **🖨 Confirm & Print**. The batch number and expiry are worked out for you. Once an item is picked, a **label preview** shows exactly what will print, with a line underneath saying what the 2D code carries.
+
+#### What is the 2D code?
+
+Every Prepack, Drug Reconstitution and Extemp label now carries a small **square 2D code** (a GS1 DataMatrix, about 8–9 mm across) in the **bottom-right corner** — on the 50/50 Drug Reconstitution label it sits in the **lower (Use Before) half**. Nothing else on the label changes. The code holds:
+
+- the **Internal GTIN** — the item code turned into a 14-digit number, plus the **pack volume** (30, 60, 120, 240 or 480 mL) when the item's row in *Maintenance → Products* clearly says so (see Chapter 7c);
+- the **Use Before** date, exactly as printed;
+- the **batch number**, exactly as printed.
+
+BCS and RxStation can scan it, so nobody has to type the item code, batch or expiry again, and you do not need a second sticker from the Tiny 2D-code app. The line under the preview reads, for example, *2D code: (01)00425873440010(17)270419(10)PP-26101901*.
+
+The app leaves the 2D code off — and asks before printing — when it cannot carry what the label says:
+
+- **"Item code … cannot be made into an Internal GTIN"** — the code is not 6 letters/digits.
+- **"The Use Before date … is not a date the 2D code can carry (use DD/MM/YYYY)"** — usually a mistyped override date on the Prepack tab. Re-type it as `DD/MM/YYYY`.
+- **"The batch number must be upper case with no spaces"** / **"A Lot cannot contain …"** — the item's prefix has a lower-case letter, space or symbol. Fix the prefix in *Maintenance → Products*.
+- **"The label text does not fit beside the 2D code at the current font sizes"** — the drug name or other text is too long for the font sizes set in *Settings → Label Layout*. Print without the code, or ask an admin to reduce the font sizes.
+
+Click **OK** to print the label without the 2D code, or **Cancel** to fix the problem first. An admin can turn the 2D code off for every label in *Settings → Label Layout* (Chapter 8a).
 
 ### 5a. ABX Preparation
 
@@ -242,8 +271,8 @@ Type the number of vials you are mixing today. The app prints this many small la
 **④ Pick the label type — *IP* or *OP*.**
 Use the toggle under *Label type*. IP labels show the expiry line; OP labels do not. Most ward antibiotics are IP.
 
-**⑤ Click *🖨 Confirm & Print*.**
-The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and this item's batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
+**⑤ Check the preview, then click *🖨 Confirm & Print*.**
+The *Reconstitution label preview* shows the bottle label with its 2D code in the lower half (see *What is the 2D code?* above). The labels print, a new row is added to Batch History (*Maintenance → Batch History*), and this item's batch counter goes up by one for next time. You will see *✓ Labels printed & record saved!* flash at the top of the card.
 
 The **Batch No.** field shows how the batch will look, for example `A457-26101902` — the item's prefix + today's date + a two-digit counter. Each item has its own counter that restarts at 01 every day, so printing *AUGM06* (`A457-26101901`) and then *AUGM02* gives `A156-26101901`, not `…02`. Untick *Include prefix in batch no.* if you do not want the manufacturer prefix on the label.
 
@@ -268,7 +297,7 @@ Type how many bottles/units you are making. The app prints **enough copies so th
 **③ Read the storage + warning block on the right.**
 Below the *Use Before* date, the app shows the **Storage condition** (for example *Store in a cool dry place, below 25°C*) and any **Warning** from the expiry rule (for example *⚠ Shake well before use*). These come from *Maintenance → Expiry Rules* — check them before you print, because they will appear on the printed label.
 
-**To finish:** click **🖨 Confirm & Print**. The labels print and a Batch History record is saved. Click **Clear** to reset the form for the next job.
+**To finish:** check the *Label preview* (the 2D code is in the bottom-right corner) and click **🖨 Confirm & Print**. The labels print and a Batch History record is saved. Click **Clear** to reset the form for the next job.
 
 #### What if something goes wrong?
 
@@ -282,8 +311,9 @@ Below the *Use Before* date, the app shows the **Storage condition** (for exampl
 
 Follow the red numbers on the picture above.
 
-**① Choose a drug code from the *Drug Code* drop-down.**
-For example *PARA05* for Paracetamol 500mg tab. The **Description** field fills in on the right.
+**① Choose a drug code from the *Drug Code* drop-down — or scan.**
+For example *PARA01* for Paracetamol 500mg tab. The **Description** field fills in on the right.
+Instead of the drop-down you can click the **Scan or Type Code** box at the top and scan the bulk bottle's barcode, scan the 2D code on an earlier prepack label, or type the drug code, then press **Enter**. The drug must be on the Prepack list, otherwise you see *"XXXXXX is not on the Prepack list."*
 
 **② Type the *Strength*.**
 The strength shown on the label, for example `500`. This will be added to the description, so the sticker reads *PARACETAMOL 500MG TAB 500MG*. Leave it blank if the description already has the strength in it.
@@ -296,7 +326,7 @@ The app asks you one more time: *Use Before: DD-Mon-YYYY — Is this correct?*. 
 
 **⑤ The Confirm popup.**
 - Click **OK / Yes** if the use-before date looks right → the labels print.
-- Click **Cancel / No** if you want to type a different expiry → a new *Override Use Before Date* box appears. Type the correct date as `DD/MM/YYYY` and click *Confirm* to print with your override.
+- Click **Cancel / No** if you want to type a different expiry → a new *Override Use Before Date* box appears. Type the correct date as `DD/MM/YYYY` and click *Confirm* to print with your override. The label preview and the 2D code use your override date.
 
 Before you hit Confirm, tidy up the small details on the left:
 
@@ -326,7 +356,7 @@ Before you hit Confirm, tidy up the small details on the left:
 Follow the red numbers on the picture above.
 
 **① Add items one at a time.**
-- Type the 6-character **Item Code** (for example `PARA05`) and press **Enter** → the cursor jumps to the Quantity box.
+- Type the 6-character **Item Code** (for example `PARA05`) — or scan a barcode or one of our own 2D codes — and press **Enter** → the cursor jumps to the Quantity box.
 - Type the **Quantity** (how many bottles you will pick) and press **Enter** → the row is added to the list below.
 - The cursor jumps back to the Item Code box so you can add the next drug.
 - If you add the **same item code twice**, the app **merges** the two entries and highlights the row in blue for a moment — it does not create a duplicate.
@@ -360,6 +390,8 @@ For example `PARA05`. As soon as you finish typing (after the 6th character), th
 **② Set the *Quantity* and click *🖨 Print Label*.**
 - Type how many labels you want (1 to 99).
 - Click **🖨 Print Label** (or just press **Enter** in the item code box once the preview is green).
+
+If you scan one of our own square 2D codes here, the app looks up the item and prints the drug's GTIN from the GTIN map — not the Internal GTIN, which only our own systems understand.
 
 The label is a small sticker with a **QR code** of the full GTIN and the **item code** in text below the QR. The QR is sized automatically to fill the label; you can tweak it in *Settings → GTIN QR Label* if you need smaller text.
 
@@ -417,6 +449,8 @@ Once you are in, Maintenance is split into **four groups** down the left side. F
 ### 7c. The Products sub-tabs
 
 Click **Products** and the main area shows five mini-tabs across the top: **Drug (PHQ) · ABX · Prepack · Extemp · Exp After Open**. Each tab shows a searchable table with **+ Add**, edit (✏️), and delete (🗑️) buttons. Use these when you want to add or fix a single item by hand.
+
+**Pack volume for the 2D code.** If a liquid always comes in one of the listed volumes, type it as a number followed by `ML` — for example `60ML` — in the row's **Pack Size** (ABX), **Volume** (Extemp) or **Unit** (Prepack) field. The 2D code then records 30, 60, 120, 240 or 480 mL. Anything else (blank, `100ML`, `TAB`, `60` without `ML`) records no volume — that is fine and still scans to the right item.
 
 Drug descriptions always come from the **Drug (PHQ)** item list. The ABX, Prepack, Extemp and Exp After Open tabs show that description next to each code (or *⚠ Not in item list*); to change the wording on a label, fix the item list, not these tabs.
 
@@ -532,6 +566,10 @@ The card finishes with a grey hint line: *Default: 34.4 × 25 mm · Arial · Dru
 
 **④ Click *Save settings*.**
 At the top-right of the page. The button flashes *✓ Saved* for two seconds. Your next printed label uses the new dimensions.
+
+#### 2D Code on Prepack / Reconstitution / Extemp Labels
+
+One tick box: **Print the Internal GTIN 2D code (GS1 DataMatrix)** — **on** by default. Untick it (and click **Save settings**) to print these labels exactly as before, without the square code. The *Drug Reconstitution* live preview above shows where the code sits; it is drawn at 3 printer dots per square for the GX420t, so do not scale it.
 
 #### GTIN QR Label
 
@@ -678,6 +716,10 @@ Every red message in RxStation has a meaning. If you see one of the messages bel
 | Could not calculate expiry — check expiry rules in Maintenance. | No Active expiry rule exists for the drug + manufacturer pair. | *Maintenance → Expiry Rules* — add an Active rule. Chapter 7. |
 | No expiry rule found — add one in Maintenance. | Extemp / Prepack — the drug has no Active Expiry Rule. | *Maintenance → Expiry Rules* — add a rule. Chapter 7. |
 | No expiry date — check expiry rules or enter one manually. | Prepack — no rule and no custom expiry. | Add a rule, or type a date in *Custom Expiry (optional)*. Chapter 5c. |
+| GTIN … is not in the GTIN map or the item list. | Small Label Print — the scanned code starts `X04…` (an Internal GTIN) but is not for an item in the item list, and the GTIN map does not know it either. | Check the label is one of ours and the drug list is up to date (Chapter 7d). The app never guesses an item code for these codes. |
+| XXXXXX is not on the Prepack list. | Prepack *Scan or Type Code* — the scanned or typed drug is not set up for prepacking. | Pick from the drop-down, or add it in *Maintenance → Products → Prepack*. |
+| No 2D code on this label: … | Reconstitution tabs — the 2D code cannot carry what the label says. | See *What is the 2D code?* in Chapter 5. |
+| The label text does not fit beside the 2D code at the current font sizes … | Reconstitution tabs — with these font sizes the 2D code would push text off the label. | Print without the code, or reduce the font sizes in *Settings → Label Layout*. |
 | Item code must be 6 characters | EV54 pick-list — your code is the wrong length. | Item codes are exactly 6 characters. Chapter 6a. |
 | Item code "XXXXXX" not found in PHQ data | EV54 — the code is not in the drug list. | Import the latest drug list. Chapter 7d. |
 | XXXXXX is not on the EV54 drug list | EV54 pick-list is restricted to the EV54 allowlist. | *Maintenance → EV54 Drugs* — add the item, or turn off the restriction in *Maintenance → EV54 Allowlist*. Chapter 7. |
