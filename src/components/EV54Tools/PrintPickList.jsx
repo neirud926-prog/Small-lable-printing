@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { findDrugByCode, getItemLocation, getMobileShelfBin, findEV54Drug, getSettings, findByGtin } from '../../utils/storage'
+import { findDrugByCode, getItemLocation, getMobileShelfBin, findEV54Drug, getSettings } from '../../utils/storage'
 import { formatDateLabel } from '../../utils/batchNumber'
 import { printPickList } from '../../utils/pickListPrint'
-import { classifyScannedInput, itemCodeFromDecodedGtin } from '../../utils/barcodeDecoder'
+import { classifyScannedInput } from '../../utils/barcodeDecoder'
+import { resolveGtinScan } from '../../utils/scanLookup'
 
 export default function PrintPickList() {
   const [rows, setRows]             = useState([])
@@ -36,7 +37,7 @@ export default function PrintPickList() {
     switch (c.kind) {
       case 'op-code':
       case 'ip-code': up = c.itemCode; break
-      case 'gtin':    up = itemCodeFromDecodedGtin(c.decoded, findByGtin); break
+      case 'gtin':    up = resolveGtinScan(c).itemCode; break
       default:
         setError('Enter a 6-char item code or scan a barcode')
         codeRef.current?.focus()

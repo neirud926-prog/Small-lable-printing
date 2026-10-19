@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import QRCode from 'qrcode'
-import { findDrugByCode, findGtinByCode, getSettings, findByGtin } from '../../utils/storage'
-import { classifyScannedInput, itemCodeFromDecodedGtin } from '../../utils/barcodeDecoder'
+import { findDrugByCode, findGtinByCode, getSettings } from '../../utils/storage'
+import { classifyScannedInput } from '../../utils/barcodeDecoder'
+import { resolveGtinScan } from '../../utils/scanLookup'
 
 export default function PrintGtinLabel() {
   const [itemCode, setItemCode]   = useState('')
@@ -39,8 +40,13 @@ export default function PrintGtinLabel() {
         resolveFromCode(c.itemCode)
         break
       case 'gtin': {
-        const code = itemCodeFromDecodedGtin(c.decoded, findByGtin)
+        const r = resolveGtinScan(c)
+        const code = r.itemCode
         if (!code) { setDrug(null); setGtin(null); setErrorMsg('Could not resolve item code from scanned GTIN.'); break }
+        // An Internal GTIN is RxStation's own code for the item, not the
+        // product's GTIN — print the item's GTIN from the GTIN map, exactly as
+        // if the item code had been typed.
+        if (r.source === 'internal-gtin') { resolveFromCode(code); break }
         // Use the GTIN we just scanned directly — no need to round-trip through findGtinByCode
         const d = findDrugByCode(code)
         setDrug(d || null)

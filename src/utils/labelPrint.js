@@ -4,6 +4,10 @@
 // Prints are queued one-at-a-time so multiple copies never race each other.
 
 import { invoke } from '@tauri-apps/api/core'
+import { dataMatrixHTML, SYMBOL_EDGE_MARGIN_MM, SYMBOL_TEXT_GAP_MM, MODULE_MM, QUIET_ZONE_MODULES } from './labelDataMatrix'
+
+// mm value for inline CSS, rounded so the markup stays readable.
+const _mm = v => Number(v.toFixed(3))
 
 function isTauri() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -260,7 +264,7 @@ function _enqueueReconstitutionIframe(labelHTML, settings) {
   }))
 }
 
-function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode = '') {
+function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode = '', symbol = null) {
   const w = settings.labelWidth  || 34.4
   const h = settings.labelHeight || 25
   const css = buildReconstitutionPageCSS(settings)
@@ -280,6 +284,13 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, item
         valueFontBold:  settings.reconValueFontBold ?? true,
         fontFamily:     settings.fontFamily    || 'Arial',
         topBlackBg:     isBlackBgItem(itemCode),
+        // Internal GTIN DataMatrix (issue #32) — rows of 0/1, drawn module by
+        // module on whole printer dots. Null when the label carries no symbol.
+        symbolRows:         symbol ? symbol.matrix.modules : null,
+        symbolXMm:          symbol ? symbol.placement.xMm : null,
+        symbolYMm:          symbol ? symbol.placement.yMm : null,
+        symbolModuleMm:     symbol ? MODULE_MM : null,
+        symbolQuietModules: symbol ? QUIET_ZONE_MODULES : null,
       })
       return
     } catch (e) {
@@ -296,18 +307,21 @@ function _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, item
   })
 }
 
-export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings = {}, itemCode = '') {
-  const labelHTML = buildReconstitutionLabelHTML(batchNo, expiry, settings, itemCode)
+// `symbol` — optional result of buildLabelDataMatrix({ …, region: 'lower-half' });
+// when given, the Internal GTIN DataMatrix is printed in the lower half on both
+// the native (GDI) path and the HTML fallback.
+export function printReconstitutionLabel(batchNo, expiry, copies = 1, settings = {}, itemCode = '', symbol = null) {
+  const labelHTML = buildReconstitutionLabelHTML(batchNo, expiry, settings, itemCode, symbol)
   for (let i = 0; i < copies; i++) {
     if (isTauri() && settings.silentPrint) {
-      _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode)
+      _enqueueReconstitutionSilent(batchNo, expiry, labelHTML, settings, itemCode, symbol)
     } else {
       _enqueueReconstitutionIframe(labelHTML, settings)
     }
   }
 }
 
-export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, itemCode = '') {
+export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, itemCode = '', symbol = null) {
   const ff        = settings.fontFamily    || 'Arial'
   const titlePt   = settings.reconTitleFontSize || settings.batchFontSize || 6
   const valuePt   = settings.reconValueFontSize || ((settings.drugFontSize || 8.5) + 0.5)
@@ -317,6 +331,11 @@ export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, ite
   const half = `flex:1 1 50%;display:flex;flex-direction:column;justify-content:center;padding:0 1mm;overflow:hidden;`
   const topHalf = isBlackBg
     ? `${half}background:#000;color:#fff;`
+    : half
+  // With the DataMatrix in the lower half, keep its text clear of the symbol.
+  const w = settings.labelWidth || 34.4
+  const bottomHalf = symbol
+    ? `${half}padding-right:${_mm(w - symbol.placement.xMm + SYMBOL_TEXT_GAP_MM)}mm;`
     : half
   const title = `font-size:${titlePt}pt;font-family:${ff},sans-serif;line-height:1.1;font-weight:${titleW};`
   const value = `font-size:${valuePt}pt;font-family:${ff},sans-serif;font-weight:${valueW};line-height:1.15;margin-top:0.5mm;`
@@ -337,12 +356,46 @@ export function buildReconstitutionLabelHTML(batchNo, expiry, settings = {}, ite
         <div style="${title}">Batch No:</div>
         ${valueLine(batchTrim, topLineColor)}
       </div>
-      <div style="${half}">
+      <div style="${bottomHalf}">
         <div style="${title}">Use Before:</div>
         ${valueLine(expTrim, '#000')}
       </div>
     </div>
+    ${symbol ? dataMatrixHTML(symbol) : ''}
   `
+}
+
+// Does every line of label text sit inside the label, inside any box that
+// clips it, and clear of the 2D code? Run on a rendered label document (the
+// preview iframe — same HTML and CSS as the print paths). Used to catch font
+// settings too large for the text to fit beside the DataMatrix.
+export function labelTextFits(doc) {
+  const win = doc.defaultView
+  const tol = 0.5 // px
+  const symbolEl = doc.querySelector('.label-datamatrix')
+  const symbol = symbolEl ? symbolEl.getBoundingClientRect() : null
+  const walker = doc.createTreeWalker(doc.body, win.NodeFilter.SHOW_TEXT)
+  while (walker.nextNode()) {
+    const node = walker.currentNode
+    if (!node.textContent.trim()) continue
+    let clip = { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight }
+    for (let el = node.parentElement; el && el !== doc.body; el = el.parentElement) {
+      if (win.getComputedStyle(el).overflow === 'visible') continue
+      const r = el.getBoundingClientRect()
+      clip = {
+        left: Math.max(clip.left, r.left), top: Math.max(clip.top, r.top),
+        right: Math.min(clip.right, r.right), bottom: Math.min(clip.bottom, r.bottom),
+      }
+    }
+    const range = doc.createRange()
+    range.selectNodeContents(node)
+    for (const r of range.getClientRects()) {
+      if (r.width === 0 || r.height === 0) continue
+      if (r.left < clip.left - tol || r.right > clip.right + tol || r.top < clip.top - tol || r.bottom > clip.bottom + tol) return false
+      if (symbol && r.left < symbol.right - tol && r.right > symbol.left + tol && r.top < symbol.bottom - tol && r.bottom > symbol.top + tol) return false
+    }
+  }
+  return true
 }
 
 // Item codes that get black-background treatment on the small label.
@@ -416,27 +469,52 @@ export function buildAbxLabelHTML(drugName, batchNo, expiry, itemCode, settings 
   return `<div style="display:flex;width:100%;height:100%;">${col}${col}${col}</div>`
 }
 
+// Prepack / Extemp labels with the Internal GTIN DataMatrix (issue #32): the
+// symbol is pinned to the bottom-right corner on whole printer dots, and two
+// floats reserve that corner so every line of label text wraps around it
+// instead of running underneath — however long the description is.
+function _withBottomRightSymbol(contentHTML, settings, symbol) {
+  if (!symbol) return contentHTML
+  const w  = settings.labelWidth || 34.4
+  const pt = settings.labelPadTop   ?? 0
+  const pr = settings.labelPadRight ?? 0
+  const { xMm, yMm, heightMm } = symbol.placement
+  const spacerH  = Math.max(0, yMm - pt - SYMBOL_TEXT_GAP_MM)
+  const reserveW = Math.max(0, w - pr - xMm + SYMBOL_TEXT_GAP_MM)
+  const reserveH = heightMm + SYMBOL_TEXT_GAP_MM + SYMBOL_EDGE_MARGIN_MM
+  return `
+    <div>
+      <div style="float:right;width:0;height:${_mm(spacerH)}mm;"></div>
+      <div style="float:right;clear:right;width:${_mm(reserveW)}mm;height:${_mm(reserveH)}mm;"></div>
+      ${contentHTML}
+    </div>
+    ${dataMatrixHTML(symbol)}
+  `
+}
+
 // Extemp / EC label
-export function buildExtempLabelHTML(description, batchNo, expiry, storage, warning, note, settings = {}) {
+// `symbol` — optional result of buildLabelDataMatrix(); adds the Internal GTIN DataMatrix.
+export function buildExtempLabelHTML(description, batchNo, expiry, storage, warning, note, settings = {}, symbol = null) {
   const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7
-  return `
+  return _withBottomRightSymbol(`
     <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
     <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No.: ${_valueOrUnderline(batchNo, bfs)}</div>
     <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: ${_valueOrUnderline(expiry, bfs)}</div>
     ${storage ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${storage}</div>` : ''}
     ${warning ? `<div style="font-size:${bfs}pt;margin-top:0.5mm;">${warning}</div>` : ''}
     ${note    ? `<div style="font-size:${Math.max(bfs - 1, 5)}pt;margin-top:0.5mm;">${note}</div>` : ''}
-  `
+  `, settings, symbol)
 }
 
 // Prepack label
-export function buildPrepackLabelHTML(description, batchNo, expiry, settings = {}) {
+// `symbol` — optional result of buildLabelDataMatrix(); adds the Internal GTIN DataMatrix.
+export function buildPrepackLabelHTML(description, batchNo, expiry, settings = {}, symbol = null) {
   const dfs = settings.drugFontSize  || 8
   const bfs = settings.batchFontSize || 7
-  return `
+  return _withBottomRightSymbol(`
     <div style="font-size:${dfs}pt;font-weight:bold;text-align:center;padding:1mm;">${description}</div>
     <div style="font-size:${bfs}pt;margin-top:1mm;">Batch No: ${_valueOrUnderline(batchNo, bfs)}</div>
     <div style="font-size:${bfs}pt;margin-top:0.5mm;">Use Before: ${_valueOrUnderline(expiry, bfs)}</div>
-  `
+  `, settings, symbol)
 }

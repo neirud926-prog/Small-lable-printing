@@ -10,6 +10,13 @@
 //
 // Pass method as second argument to decodeBarcode(), or rely on the
 // default which reads from the app settings.
+//
+// Internal GTINs (ADR-0002, issue #31) — GTINs with GS1 prefix 04 that carry
+// the Item Code arithmetically — are recognised by resolveScannedGtin() before
+// the GTIN map, whichever decoder method is selected, and never get the
+// "last 6 digits = item code" fallback.
+
+import { hasInternalGtinPrefix, internalGtinItemCode } from './internalGtin'
 
 // ── GS1 AI lookup tables ──────────────────────────────────────────────────────
 // Fixed-length AIs: key = AI string, value = data byte count after the AI
@@ -115,7 +122,10 @@ function findNextAIBoundary(s, startPos) {
  *   - Variable-length fields with no FNC1 (uses AI-boundary lookahead)
  * Returns null if the string doesn't look like a GS1 AI stream.
  */
-function parseGS1AIs(raw) {
+// `strict` (Internal GTIN labels): a variable-length field ends only at FNC1 or
+// at the end of the data — no boundary guessing — so the Lot of an
+// (01)(17)(10) label is everything after AI 10.
+function parseGS1AIs(raw, { strict = false } = {}) {
   let s = raw
 
   // Strip GS1 symbology identifiers emitted by some scanners
@@ -158,6 +168,9 @@ function parseGS1AIs(raw) {
         if (end !== -1) {
           ais[ai] = s.substring(i + alen, end)
           i = end + 1
+        } else if (strict) {
+          ais[ai] = s.substring(i + alen)
+          i = s.length
         } else {
           const boundary = findNextAIBoundary(s, i + alen)
           ais[ai] = boundary !== -1 ? s.substring(i + alen, boundary) : s.substring(i + alen)
@@ -487,18 +500,83 @@ export function classifyScannedInput(raw, method = 'gs1') {
   return { kind: 'unknown' }
 }
 
-// Resolve a GTIN-decoded payload → item code. Uses the GTIN map if a lookup
-// function is supplied (so this file stays storage-agnostic); falls back to
-// the last six digits of the normalised GTIN.
-export function itemCodeFromDecodedGtin(decoded, findByGtin) {
-  if (!decoded) return ''
-  const gtin = decoded[0]
-  if (!gtin) return ''
-  const norm = normaliseGtin(gtin)
-  if (!norm) return ''
+// ── Internal GTIN scans (ADR-0002) ───────────────────────────────────────────
+
+/**
+ * Strict read of a scan whose GTIN might be an Internal GTIN: a plain 14-digit
+ * GTIN, or a GS1 element string starting with AI 01 (symbology identifier and
+ * FNC1 / ^ handled as usual). Variable-length fields end only at FNC1 or the
+ * end of the data, so the Lot is everything after AI 10.
+ *
+ * Returns { gtin, lot, exp } (lot / exp 'na----' when absent) when the GTIN has
+ * 04 in digits 2–3, else null. Independent of the decoder-method setting.
+ */
+export function parseInternalGtinScan(raw) {
+  if (!raw) return null
+  const trimmed = String(raw).trim()
+  if (/^\d{14}$/.test(trimmed)) {
+    return hasInternalGtinPrefix(trimmed) ? { gtin: trimmed, lot: 'na----', exp: 'na----' } : null
+  }
+  const body = trimmed.replace(/^\]([CdQe][\dA-Fa-f]|[CdQe]\d{2})/, '').replace(/^[\u001d^]+/, '')
+  if (!/^01\d{14}/.test(body)) return null
+  const gtin = body.substring(2, 16)
+  if (!hasInternalGtinPrefix(gtin)) return null
+  const ais = parseGS1AIs(body, { strict: true }) || {}
+  return { gtin, lot: ais['10'] || 'na----', exp: ais['17'] || ais['15'] || 'na----' }
+}
+
+/**
+ * Resolve a scanned GTIN to an item code, in the ADR-0002 order:
+ *   1. Internal GTIN fast path — digit 1 is 0–8, digits 2–3 are 04, valid check
+ *      digit, N < 4,096,000,000 → decode the base-40 Item Code; accept it when
+ *      `isItemCode(code)` says it is in the item list. Lot / expiry then come
+ *      from the strict read (Lot = everything after AI 10).
+ *   2. The GTIN map (`findByGtin`), as before.
+ *   3. The last six digits of the GTIN, as before — but never for a GTIN with
+ *      04 in digits 2–3.
+ *
+ * `scan` is what classifyScannedInput() returned for a 'gtin' input
+ * ({ decoded, rawBarcode }); a bare decoded array is accepted too.
+ * `allowLastSix: false` skips step 3 (for screens that only search).
+ *
+ * Returns { itemCode, source, gtin, lot, exp } — source is 'internal-gtin',
+ * 'gtin-map', 'last-six' or null (itemCode '' when nothing matched). lot / exp
+ * use the decoder's 'na----' placeholder when absent.
+ */
+export function resolveScannedGtin(scan, { findByGtin, isItemCode, allowLastSix = true } = {}) {
+  const decoded = Array.isArray(scan) ? scan : scan && scan.decoded
+  const rawBarcode = Array.isArray(scan) ? null : scan && scan.rawBarcode
+  const none = { itemCode: '', source: null, gtin: '', lot: 'na----', exp: 'na----' }
+
+  // 1. Internal GTIN fast path (read strictly from the raw scan when we have it,
+  //    so it works with either decoder method).
+  const internal = parseInternalGtinScan(rawBarcode) ||
+    (decoded && decoded[0] && hasInternalGtinPrefix(normaliseGtin(decoded[0]))
+      ? { gtin: normaliseGtin(decoded[0]), lot: decoded[1] || 'na----', exp: decoded[2] || 'na----' }
+      : null)
+  if (internal && typeof isItemCode === 'function') {
+    const code = internalGtinItemCode(internal.gtin)
+    if (code && isItemCode(code)) {
+      return { itemCode: code, source: 'internal-gtin', gtin: internal.gtin, lot: internal.lot, exp: internal.exp }
+    }
+  }
+
+  if (!decoded || !decoded[0]) return none
+  const norm = normaliseGtin(decoded[0])
+  if (!norm) return none
+  const lot = decoded[1] || 'na----'
+  const exp = decoded[2] || 'na----'
+
+  // 2. GTIN map.
   if (typeof findByGtin === 'function') {
     const mapped = findByGtin(norm)
-    if (mapped) return mapped
+    if (mapped) return { itemCode: mapped, source: 'gtin-map', gtin: norm, lot, exp }
   }
-  return norm.substring(8, 14)
+
+  // 3. Last six digits — never for a GTIN with 04 in digits 2–3.
+  if (allowLastSix && !internal && !hasInternalGtinPrefix(norm)) {
+    return { itemCode: norm.substring(8, 14), source: 'last-six', gtin: norm, lot, exp }
+  }
+  return { ...none, gtin: norm }
 }
+

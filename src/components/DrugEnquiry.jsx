@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react'
 import {
   getDrugs, getItemLocation, getGtinMap, getExpAfterOpenDays,
-  getStockOnhand, getStockOnhandMeta, getDataPaths,
+  getStockOnhand, getStockOnhandMeta, getDataPaths, getSettings,
 } from '../utils/storage'
 import { refreshSource } from '../utils/dataLoader'
+import { classifyScannedInput, resolveScannedGtin } from '../utils/barcodeDecoder'
 import Icon from './Icon'
 
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
@@ -95,15 +96,25 @@ export default function DrugEnquiry() {
   const calcDate = daysValid ? fmtDDMMMYYYY(addDaysISO(daysNum)) : ''
   const calcWeeks = daysValid ? (daysNum / 7).toFixed(2) : ''
 
+  const drugCodes = useMemo(() => new Set(drugs.map(d => d.itemCode.toUpperCase())), [drugs])
+  const barcodeMethod = getSettings().barcodeMethod || 'gs1'
+
   const filtered = useMemo(() => {
     const v = q.trim().toUpperCase()
     if (!v) return drugs.slice(0, 200)
+    // A scanned Internal GTIN (ADR-0002) names its item directly — show just
+    // that item. Anything else searches as before.
+    const scan = classifyScannedInput(q, barcodeMethod)
+    if (scan.kind === 'gtin') {
+      const r = resolveScannedGtin(scan, { isItemCode: code => drugCodes.has(code), allowLastSix: false })
+      if (r.source === 'internal-gtin') return drugs.filter(d => d.itemCode.toUpperCase() === r.itemCode)
+    }
     return drugs.filter(d =>
       d.itemCode.toUpperCase().includes(v) ||
       (d.name || '').toUpperCase().includes(v) ||
       (gtinMap[d.itemCode.toUpperCase()] || '').includes(v)
     ).slice(0, 200)
-  }, [q, drugs, gtinMap])
+  }, [q, drugs, gtinMap, drugCodes, barcodeMethod])
 
   return (
     <div>

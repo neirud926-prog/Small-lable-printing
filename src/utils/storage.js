@@ -274,6 +274,9 @@ export function getSettings() {
     reconTitleFontBold: false,
     reconValueFontSize: 9,
     reconValueFontBold: true,
+    // Internal GTIN 2D code (GS1 DataMatrix) on Prepack / Reconstitution /
+    // Extemp labels. A missing value counts as on (labelDataMatrix.js).
+    labelDataMatrix: true,
     // Barcode decoder method: 'gs1' (GS1 AI parser) | 'legacy' (P0-P6 positional)
     barcodeMethod:   'gs1',
     // EV54 pick list: when true, reject codes not in the EV54 Drugs table.

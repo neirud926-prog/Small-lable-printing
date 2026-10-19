@@ -42,6 +42,7 @@
 | 3.2 | Search by name | Type partial drug name | Matching drugs listed | ☐ Pass ☐ Fail | |
 | 3.3 | Unknown code | Type an unknown code | "Not found" message shown; no crash | ☐ Pass ☐ Fail | |
 | 3.4 | Read-only | Verify no print button is present | Only lookup; no print action available | ☐ Pass ☐ Fail | |
+| 3.5 | Internal GTIN scan | Scan (or type) `20425873440489` in the search box | Only PARA18 is listed | ☐ Pass ☐ Fail | |
 
 ---
 
@@ -60,6 +61,10 @@
 | 4.7 | Print dialog | Settings → disable Silent Print → confirm | OS print dialog shown before printing | ☐ Pass ☐ Fail | |
 | 4.8 | Batch counter increments | Print a label → check Maintenance → Batch Counters | Counter for that item (active location) incremented by 1; other items' counters unchanged | ☐ Pass ☐ Fail | |
 | 4.9 | Unknown GTIN | Scan a barcode with a GTIN not in the GTIN map | Error message shown: "GTIN not found" | ☐ Pass ☐ Fail | |
+| 4.9a | Internal GTIN (plain) | Type `00425873440010` + Enter → IP | PARA01 (PARACETAMOL TABLET 500MG) label form | ☐ Pass ☐ Fail | |
+| 4.9b | Internal GTIN 2D code | Scan the 2D code on a printed Prepack label (or a Tiny 2D-code app label) → IP | Item code, Lot and Use Before match the scanned label exactly (e.g. Lot `21113HK1`, `(B)A52921725A4`, `MIPL/A4/UII/91` unchanged) | ☐ Pass ☐ Fail | |
+| 4.9c | Unknown Internal GTIN | Type `00499999999993` + Enter → IP | "GTIN 00499999999993 is not in the GTIN map or the item list." — no label, no guessed item code | ☐ Pass ☐ Fail | |
+| 4.9d | Manufacturer GTIN unchanged | Scan the same manufacturer drug box as in 4.2 | Same item code, batch and expiry as before this version | ☐ Pass ☐ Fail | |
 
 ### 4b — Short Expiry Tab
 
@@ -77,6 +82,9 @@
 |---|---------|-------|-----------------|-------------|-------|
 | 5.1 | Select antibiotic | Choose an ABX drug from the list | Reconstitution details shown (volume, diluent, concentration) | ☐ Pass ☐ Fail | |
 | 5.2 | Generate label | Fill required fields → Print | ABX preparation label printed | ☐ Pass ☐ Fail | |
+| 5.2a | 2D code on reconstitution label | Pick AUGM06 + manufacturer → check preview → Print (Silent Print **on**, native) | Preview and printed label show the square 2D code in the lower (Use Before) half; Batch / Use Before text unchanged and readable | ☐ Pass ☐ Fail | |
+| 5.2b | 2D code scans | Scan the printed reconstitution label with the BCS / a GS1 scanner | Item code AUGM06, Lot = printed Batch No., Expiry = printed Use Before | ☐ Pass ☐ Fail | |
+| 5.2c | 2D code — print-dialog path | Settings → Silent Print **off** → print an ABX label | 2D code also on the label printed through the print dialog, and still scans | ☐ Pass ☐ Fail | |
 | 5.3 | Disable ABX tab | Settings → Admin → uncheck **ABX Preparation** → go to Reconstitution | ABX tab no longer shown; first remaining tab is active | ☐ Pass ☐ Fail | |
 | 5.4 | Re-enable ABX tab | Re-check **ABX Preparation** | Tab reappears on next navigation to Reconstitution | ☐ Pass ☐ Fail | |
 
@@ -85,6 +93,7 @@
 | # | Feature | Steps | Expected Result | Pass / Fail | Notes |
 |---|---------|-------|-----------------|-------------|-------|
 | 5.5 | Generate extemp label | Select extemp preparation → fill fields → Print | Extemp label printed with correct details | ☐ Pass ☐ Fail | |
+| 5.5a | 2D code with pack volume | Maintenance → Products → Extemp: set Volume `120ML` → print that item | 2D code bottom-right; text wraps clear of it; scanned GTIN starts with `3` (120 mL) and gives the right item | ☐ Pass ☐ Fail | |
 | 5.6 | Disable Extemp tab | Settings → Admin → uncheck **Extemporaneous** | Tab hidden from Reconstitution | ☐ Pass ☐ Fail | |
 
 ### 5c — Prepack Tab
@@ -92,6 +101,11 @@
 | # | Feature | Steps | Expected Result | Pass / Fail | Notes |
 |---|---------|-------|-----------------|-------------|-------|
 | 5.7 | Generate prepack label | Select prepack item → fill quantity → Print | Prepack label printed | ☐ Pass ☐ Fail | |
+| 5.7a | Prepack 2D code | Print a prepack label → scan its 2D code | Item code, Lot and Use Before match the printed text | ☐ Pass ☐ Fail | |
+| 5.7b | Prepack scan box | In *Scan or Type Code*, scan the 2D code from 5.7a (or type the drug code) + Enter | The drug is selected in the drop-down; a code not on the Prepack list gives "XXXXXX is not on the Prepack list." | ☐ Pass ☐ Fail | |
+| 5.7c | Override date | Cancel the Use Before confirm → type `01/02/2027` → Confirm | Label shows 01/02/2027; 2D code carries 1 Feb 2027 | ☐ Pass ☐ Fail | |
+| 5.7d | Bad override date | Override with `1 Feb 27` → Confirm | Asks "…not a date the 2D code can carry… Print the label without the 2D code?" | ☐ Pass ☐ Fail | |
+| 5.7e | Text too big for 2D code | Settings → Drug name 8 pt, Batch 7 pt → Prepack an item with a long name + strength | Preview warns the text does not fit beside the 2D code; printing asks before leaving the code off | ☐ Pass ☐ Fail | |
 | 5.8 | Disable Prepack tab | Settings → Admin → uncheck **Prepack** | Tab hidden from Reconstitution | ☐ Pass ☐ Fail | |
 
 ---
@@ -108,6 +122,7 @@
 | 6.4 | Remove item | Click the remove button on a row | Row removed from pick list | ☐ Pass ☐ Fail | |
 | 6.5 | Print pick list | Add several items → click Print Pick List | List printed to thermal printer; items cleared after print | ☐ Pass ☐ Fail | |
 | 6.6 | EV54 restrict mode | Settings → enable Restrict to EV54 List → enter a code not in EV54 Drugs | Error "not in EV54 list"; item rejected | ☐ Pass ☐ Fail | |
+| 6.6a | Internal GTIN on pick list | Scan `00425873440010` (or a printed 2D code) → quantity → Enter | PARA01 row added | ☐ Pass ☐ Fail | |
 | 6.7 | Disable Pick List tab | Settings → Admin → uncheck **Print Pick List** → go to EV54 Tools | Pick List tab not shown; GTIN Label tab active | ☐ Pass ☐ Fail | |
 
 ### 6b — Print GTIN Label Tab
@@ -119,6 +134,7 @@
 | 6.10 | No GTIN for code | Type a code with no GTIN in the map | Error: "No GTIN found for this item code" | ☐ Pass ☐ Fail | |
 | 6.11 | Print QR label | Enter valid code → click Print Label | QR label printed with GTIN QR code and item code text below | ☐ Pass ☐ Fail | |
 | 6.12 | Quantity > 1 | Set quantity to 3 → Print | 3 identical labels printed | ☐ Pass ☐ Fail | |
+| 6.12a | Internal GTIN on GTIN label | Scan `20425873440489` | PARA18 shown with its GTIN from the GTIN map (not the Internal GTIN) | ☐ Pass ☐ Fail | |
 | 6.13 | Custom QR size | Settings → GTIN QR Label → set QR Code Size to 15 mm → Save → print label | QR code occupies 15 mm; item code text below | ☐ Pass ☐ Fail | |
 | 6.14 | Custom font size | Settings → GTIN QR Label → set Item Code Font Size to 8pt → Save → print label | Item code text is visibly larger | ☐ Pass ☐ Fail | |
 | 6.15 | Auto QR size (0) | Settings → set QR Code Size to 0 → Save → print label | QR code fills label height automatically | ☐ Pass ☐ Fail | |
@@ -157,6 +173,7 @@
 | 8.10 | GTIN QR Code Size | Set **QR Code Size** to 18 → Save | Value persists; affects next GTIN label print | ☐ Pass ☐ Fail | |
 | 8.11 | GTIN font size | Set **Item Code Font Size** to 7 → Save | Value persists; affects next GTIN label print | ☐ Pass ☐ Fail | |
 | 8.12 | Change PIN | Change Maintenance PIN to a new value → log out of Settings → re-enter | New PIN required to unlock | ☐ Pass ☐ Fail | |
+| 8.13 | 2D code switch | Settings → Label Layout → untick **Print the Internal GTIN 2D code** → Save → print Prepack / ABX / Extemp labels | Labels print exactly as before (no 2D code); re-tick → code returns | ☐ Pass ☐ Fail | |
 
 ---
 
