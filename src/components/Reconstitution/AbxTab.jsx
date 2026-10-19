@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { getAbxList, getActiveManufacturers, getExpiryRule, getSettings } from '../../utils/storage'
+import { getAbxList, getActiveManufacturers, getExpiryRule, getSettings, getItemDescription } from '../../utils/storage'
 import { addBatchRecord } from '../../utils/storage'
 import { generateBatchNo, calcExpiryDate, formatDateLabel, commitBatchNo } from '../../utils/batchNumber'
 import { printReconstitutionLabel, printLabel, buildSmallLabelHTML } from '../../utils/labelPrint'
@@ -8,6 +8,7 @@ import { printReconstitutionLabel, printLabel, buildSmallLabelHTML } from '../..
 export default function AbxTab() {
   const [itemCode, setItemCode]       = useState('')
   const [description, setDescription] = useState('')
+  const [descFound, setDescFound]     = useState(true)
   const [manufacturers, setManufacturers] = useState([])
   const [manufacturer, setManufacturer]   = useState('')
   const [factor, setFactor]           = useState(1)
@@ -22,9 +23,11 @@ export default function AbxTab() {
   const storageKey = location === 'EC' ? 'EC' : 'IPOP'
 
   useEffect(() => {
-    if (!itemCode) { setDescription(''); setManufacturers([]); setManufacturer(''); setBatchNo(''); setExpiry(''); return }
+    if (!itemCode) { setDescription(''); setDescFound(true); setManufacturers([]); setManufacturer(''); setBatchNo(''); setExpiry(''); return }
     const abx = abxList.find(a => a.itemCode === itemCode)
-    if (abx) setDescription(abx.description || '')
+    const desc = getItemDescription(itemCode)
+    setDescription(desc.description)
+    setDescFound(desc.found)
     const mfrs = getActiveManufacturers(itemCode)
     setManufacturers(mfrs)
     setManufacturer(mfrs[0] || '')
@@ -52,6 +55,7 @@ export default function AbxTab() {
     if (!itemCode) { setError('Please select an item code.'); return }
     if (!manufacturer) { setError('Please select a manufacturer.'); return }
     if (!expiry) { setError('Could not calculate expiry — check expiry rules in Maintenance.'); return }
+    if (!descFound && !window.confirm(`${itemCode} is not in the item list, so the label will show the item code instead of a description.\nPrint anyway?`)) return
 
     // Print Drug Reconstitution label — 50/50 split (Batch No / Use Before)
     // One per vial/pack + 1 spare for the batch sheet
@@ -83,7 +87,7 @@ export default function AbxTab() {
   }
 
   const handleClear = () => {
-    setItemCode(''); setDescription(''); setManufacturers([]); setManufacturer('')
+    setItemCode(''); setDescription(''); setDescFound(true); setManufacturers([]); setManufacturer('')
     setBatchNo(''); setExpiry(''); setFactor(1); setError('')
   }
 
@@ -104,6 +108,7 @@ export default function AbxTab() {
         <div className="form-group">
           <label className="form-label">Drug Description</label>
           <input className="form-input" value={description} readOnly style={{ background: 'var(--bg)' }} />
+          {!descFound && <div style={{ color: 'var(--warning)', fontSize: 12, marginTop: 4 }}>⚠ Not in item list — showing item code</div>}
         </div>
         <div className="form-group">
           <label className="form-label">Manufacturer</label>

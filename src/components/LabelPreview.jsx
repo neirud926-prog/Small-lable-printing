@@ -5,7 +5,7 @@ import {
   buildReconstitutionLabelHTML,
   buildReconstitutionFullPageHTML,
 } from '../utils/labelPrint'
-import { findDrugByCode } from '../utils/storage'
+import { getItemDescription } from '../utils/storage'
 
 const FALLBACK_NAME = 'VALPROATE SODIUM SOLUTION 200MG/5ML'
 
@@ -22,8 +22,9 @@ export default function LabelPreview({
   const h = settings.labelHeight || 25
 
   const code = (itemCode || '').trim()
-  const drug = code ? findDrugByCode(code) : null
-  const drugName = drug?.name || FALLBACK_NAME
+  // Sample name only when no code is typed; otherwise the item-list description
+  // (or the code itself when it is not in the item list).
+  const drugName = code ? getItemDescription(code).description : FALLBACK_NAME
 
   const srcDoc = useMemo(() => {
     if (type === 'recon') {

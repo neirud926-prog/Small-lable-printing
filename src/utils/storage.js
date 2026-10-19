@@ -65,6 +65,18 @@ export function saveDrugs(list)      { save(KEYS.DRUGS, list) }
 export function findDrugByCode(code) {
   return getDrugs().find(d => d.itemCode.toUpperCase() === code.toUpperCase()) || null
 }
+// Drug description for labels and screens — always taken from the item list
+// above, never from the ABX / Prepack / Extemp tables. If the code is not in
+// the item list, the item code itself is returned with found: false so the
+// caller can flag it.
+export function getItemDescription(code) {
+  const c = (code || '').trim().toUpperCase()
+  if (!c) return { description: '', found: false }
+  const drug = findDrugByCode(c)
+  return drug && drug.name
+    ? { description: drug.name, found: true }
+    : { description: c, found: false }
+}
 
 // ── EXPIRY RULES ──────────────────────────────────────────────────────────────
 export function getExpiryRules()      { return load(KEYS.EXPIRY_RULES, []) }
