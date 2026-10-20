@@ -85,6 +85,16 @@ jobs:
             Write-Warning "NSIS installer not found under src-tauri\target\release\bundle\nsis\"
           }
 
+          # Portable build — the bare release exe (frontend embedded, no
+          # install needed; requires WebView2, preinstalled on Win10/11).
+          $portable = "src-tauri\target\release\app.exe"
+          if (Test-Path $portable) {
+            Copy-Item $portable "release\RxStation-portable.exe" -Force
+            Write-Host "Copied portable exe: RxStation-portable.exe"
+          } else {
+            Write-Warning "Portable exe not found at $portable"
+          }
+
           # MSI installer — strip the "NLTH " productName prefix so the
           # filename matches the NSIS exe and has no space. Wipe any stale
           # MSIs first so a productName change doesn't leave old filenames
@@ -111,8 +121,22 @@ jobs:
           name: windows-installers
           path: |
             release/RxStation.exe
+            release/RxStation-portable.exe
             release/*.msi
           retention-days: 30
+
+      # ── Publish a GitHub Release ─────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.${{ github.run_number }}
+          name: RxStation v0.1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: |
+            release/RxStation-portable.exe
+            release/RxStation.exe
+            release/*.msi
 
       # ── Commit artifacts back to main ───────────────────────────────────────
       - name: Commit and push release artifacts
